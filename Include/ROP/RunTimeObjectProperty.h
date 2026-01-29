@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <vector>
 #include <string>
@@ -22,7 +23,8 @@ namespace ROP
     // 前向声明
     template<typename EnumType>
     class PropertyObject;
-
+    template<typename EnumType>
+    struct PropertyMeta;
     // 属性模板类，包装属性和其枚举类型
     template<typename EnumType>
     class Property
@@ -1276,3 +1278,141 @@ public: \
         return GetPropertyDataStatic(); \
     } \
 private:
+
+
+////使用示例
+//#include <ROP/RunTimeObjectProperty.h>
+//#include <iostream>
+//
+//// 定义属性枚举
+//enum class DeviceProperty
+//{
+//    ID,
+//    NAME,
+//    STATUS,
+//    TEMPERATURE,
+//    PRESSURE,
+//    OPTIONAL
+//};
+//
+//// 设备基类
+//class Device : public ROP::PropertyObject<DeviceProperty>
+//{
+//    DECLARE_OBJECT(DeviceProperty, Device)
+//    registrar
+//        .RegisterProperty(DeviceProperty::ID, "deviceId", &Device::deviceId, "设备ID")
+//        .RegisterProperty(DeviceProperty::NAME, "deviceName", &Device::deviceName, "设备名称")
+//        .RegisterOptionalProperty(
+//            DeviceProperty::OPTIONAL, "status", &Device::status,
+//            { "Offline", "Online", "Error", "Maintenance" },
+//            "设备状态");
+//    END_DECLARE_OBJECT(DeviceProperty, Device, ROP::PropertyObject<DeviceProperty>)
+//
+//public:
+//    Device() : deviceId(0), status(0) {}
+//
+//    int deviceId;
+//    std::string deviceName;
+//    int status;  // 0:Offline, 1:Online, 2:Error, 3:Maintenance
+//};
+//
+//// 温度传感器类
+//class TemperatureSensor : public Device
+//{
+//    DECLARE_OBJECT_WITH_PARENT(DeviceProperty, TemperatureSensor, Device)
+//    registrar
+//        .RegisterProperty(
+//            DeviceProperty::TEMPERATURE, "currentTemp", &TemperatureSensor::currentTemp,
+//            "当前温度 (°C)")
+//        .RegisterProperty(
+//            DeviceProperty::TEMPERATURE, "targetTemp", &TemperatureSensor::targetTemp,
+//            "目标温度 (°C)")
+//        .RegisterOptionalProperty(
+//            DeviceProperty::OPTIONAL, "unit", &TemperatureSensor::unit,
+//            { "Celsius", "Fahrenheit", "Kelvin" },
+//            "温度单位");
+//    END_DECLARE_OBJECT(DeviceProperty, TemperatureSensor, Device)
+//
+//public:
+//    TemperatureSensor() : currentTemp(20.0f), targetTemp(22.0f), unit(0) {}
+//
+//    float currentTemp;
+//    float targetTemp;
+//    int unit;  // 0:Celsius, 1:Fahrenheit, 2:Kelvin
+//};
+//
+//int main()
+//{
+//    // 创建温度传感器
+//    TemperatureSensor sensor;
+//    sensor.deviceId = 1001;
+//    sensor.deviceName = "LabSensor_01";
+//    sensor.status = 1;  // Online
+//    sensor.currentTemp = 21.5f;
+//    sensor.targetTemp = 22.0f;
+//    sensor.unit = 0;    // Celsius
+//
+//    // 1. 显示设备信息
+//    std::cout << "=== 设备信息 ===" << std::endl;
+//    auto idProp = sensor.GetProperty("deviceId");
+//    auto nameProp = sensor.GetProperty("deviceName");
+//    auto statusProp = sensor.GetPropertyAsOptional("status");
+//
+//    std::cout << "ID: " << idProp.GetValue<int>() << std::endl;
+//    std::cout << "Name: " << nameProp.GetValue<std::string>() << std::endl;
+//    std::cout << "Status: " << statusProp.GetOptionString() << std::endl;
+//
+//    // 2. 显示温度信息
+//    std::cout << "\n=== 温度信息 ===" << std::endl;
+//    auto tempProp = sensor.GetProperty("currentTemp");
+//    auto targetProp = sensor.GetProperty("targetTemp");
+//    auto unitProp = sensor.GetPropertyAsOptional("unit");
+//
+//    std::cout << "Current: " << tempProp.GetValue<float>() << "°C" << std::endl;
+//    std::cout << "Target: " << targetProp.GetValue<float>() << "°C" << std::endl;
+//    std::cout << "Unit: " << unitProp.GetOptionString() << std::endl;
+//
+//    // 3. 动态更改设置
+//    std::cout << "\n=== 更改设置 ===" << std::endl;
+//    unitProp.SetOptionByString("Fahrenheit");
+//    std::cout << "Unit changed to: " << unitProp.GetOptionString() << std::endl;
+//
+//    // 4. 遍历所有属性
+//    std::cout << "\n=== 所有属性 ===" << std::endl;
+//    sensor.EnsurePropertySystemInitialized();
+//    auto allProps = sensor.GetAllPropertiesOrdered();
+//
+//    for (const auto& prop : allProps)
+//    {
+//        std::cout << prop.GetName() << " (" << prop.GetClassName() << "): ";
+//
+//        try
+//        {
+//            if (prop.GetType() == DeviceProperty::ID)
+//            {
+//                std::cout << prop.GetValue<int>();
+//            }
+//            else if (prop.GetType() == DeviceProperty::NAME)
+//            {
+//                std::cout << "'" << prop.GetValue<std::string>() << "'";
+//            }
+//            else if (prop.GetType() == DeviceProperty::TEMPERATURE)
+//            {
+//                std::cout << prop.GetValue<float>();
+//            }
+//            else if (prop.GetType() == DeviceProperty::OPTIONAL)
+//            {
+//                auto optionalProp = sensor.ToOptionalProperty(prop);
+//                std::cout << optionalProp.GetOptionString();
+//            }
+//        }
+//        catch (...)
+//        {
+//            std::cout << "[Error reading value]";
+//        }
+//
+//        std::cout << std::endl;
+//    }
+//
+//    return 0;
+//}
