@@ -14,6 +14,7 @@
 #include <chrono>
 #include <iomanip>
 #include <list>
+#include <initializer_list>
 
 namespace ROP
 {
@@ -27,19 +28,38 @@ namespace ROP
     class Property
     {
     public:
+        // 默认构造函数 - 创建无效的属性
+        Property() : m_type(EnumType{}), m_metaPtr(nullptr), m_objPtr(nullptr)
+        {
+        }
+
         Property(const EnumType type, const void* metaPtr, PropertyObject<EnumType>* objPtr)
             : m_type(type), m_metaPtr(metaPtr), m_objPtr(objPtr)
         {
         }
 
+        // 判断属性是否有效
+        bool IsValid() const
+        {
+            return m_metaPtr != nullptr && m_objPtr != nullptr;
+        }
+
         // 获取属性枚举类型
-        EnumType GetType() const { return m_type; }
+        EnumType GetType() const
+        {
+            if (!IsValid())
+                throw std::runtime_error("Invalid property: cannot get type");
+            return m_type;
+        }
 
         // 获取属性值（指定类型）
         template<typename T>
         T GetValue() const
         {
-            if (!m_objPtr) throw std::runtime_error("Invalid property object");
+            if (!IsValid())
+                throw std::runtime_error("Invalid property: cannot get value");
+            if (!m_objPtr)
+                throw std::runtime_error("Invalid property object");
             return m_objPtr->template GetPropertyValue<T>(m_metaPtr);
         }
 
@@ -47,15 +67,58 @@ namespace ROP
         template<typename T>
         void SetValue(const T& value)
         {
-            if (!m_objPtr) throw std::runtime_error("Invalid property object");
+            if (!IsValid())
+                throw std::runtime_error("Invalid property: cannot set value");
+            if (!m_objPtr)
+                throw std::runtime_error("Invalid property object");
             m_objPtr->template SetPropertyValue<T>(m_metaPtr, value);
         }
 
         // 获取属性元数据指针
-        const void* GetMetaPtr() const { return m_metaPtr; }
+        const void* GetMetaPtr() const
+        {
+            if (!IsValid())
+                throw std::runtime_error("Invalid property: cannot get meta pointer");
+            return m_metaPtr;
+        }
 
         // 获取所属对象
-        PropertyObject<EnumType>* GetObject() const { return m_objPtr; }
+        PropertyObject<EnumType>* GetObject() const
+        {
+            if (!IsValid())
+                throw std::runtime_error("Invalid property: cannot get object");
+            return m_objPtr;
+        }
+
+        // 获取属性描述
+        std::string GetDescription() const
+        {
+            if (!IsValid())
+                return "";
+
+            const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(m_metaPtr);
+            return meta ? meta->description : "";
+        }
+
+        // 获取属性名称
+        std::string GetName() const
+        {
+            if (!IsValid())
+                return "";
+
+            const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(m_metaPtr);
+            return meta ? meta->name : "";
+        }
+
+        // 获取属性所属类名
+        std::string GetClassName() const
+        {
+            if (!IsValid())
+                return "";
+
+            const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(m_metaPtr);
+            return meta ? meta->className : "";
+        }
 
     private:
         EnumType m_type;
@@ -80,9 +143,12 @@ namespace ROP
         // 新增：是否为选项属性标志
         bool isOptional = false;
 
+        // 新增：属性描述
+        std::string description;
+
         bool operator==(const PropertyMeta& other) const
         {
-            return name == other.name && className == other.className;
+            return name == other.name && className == other.className && enumType == other.enumType;
         }
 
         bool operator<(const PropertyMeta& other) const
@@ -98,7 +164,8 @@ namespace ROP
         size_t operator()(const PropertyMeta<EnumType>& prop) const
         {
             return std::hash<std::string>()(prop.name) ^
-                (std::hash<std::string>()(prop.className) << 1);
+                (std::hash<std::string>()(prop.className) << 1) ^
+                (std::hash<int>()(static_cast<int>(prop.enumType)) << 2);
         }
     };
 
@@ -132,9 +199,8 @@ namespace ROP
         PropertyMultiMap<EnumType> allPropertiesMultiMap;
 
         // 属性列表
-        PropertyList<EnumType> propertiesList;                             // 所有属性列表（按注册顺序）
         PropertyList<EnumType> ownPropertiesList;                          // 自身属性列表（按注册顺序）
-        PropertyList<EnumType> allPropertiesList;                          // 所有属性列表（包括继承的）
+        PropertyList<EnumType> allPropertiesList;                          // 所有属性列表（包括继承的，允许同名）
 
         // 有序属性名称
         std::vector<std::string> orderedPropertyNames;                     // 自身属性按注册顺序的名称列表
@@ -143,11 +209,14 @@ namespace ROP
         // 父类属性列表映射
         std::unordered_map<std::string, PropertyList<EnumType>> parentPropertiesListMap;
 
-        // 父类名称列表
+        // 父类名称列表（按继承顺序：直接父类在前，最远祖先在后）
         ClassNameList<EnumType> allParentsName;
 
         // 新增：选项列表映射（按类名和属性名存储）
         std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> optionalPropertyMap;
+
+        // 新增：描述映射表（按类名和属性名存储）
+        std::unordered_map<std::string, std::unordered_map<std::string, std::string>> descriptionMap;
 
         // 注册计数器
         size_t registrationCounter = 0;
@@ -161,6 +230,11 @@ namespace ROP
     class OptionalProperty : public Property<EnumType>
     {
     public:
+        // 默认构造函数 - 创建无效的可选属性
+        OptionalProperty() : Property<EnumType>()
+        {
+        }
+
         OptionalProperty(const Property<EnumType>& prop)
             : Property<EnumType>(prop)
         {
@@ -186,6 +260,9 @@ namespace ROP
         // 获取当前选项的字符串
         std::string GetOptionString() const
         {
+            if (!this->IsValid())
+                return "";
+
             // 先通过getter获取选项的整数值
             int currentValue = this->template GetValue<int>();
 
@@ -214,6 +291,9 @@ namespace ROP
         // 通过字符串设置选项
         bool SetOptionByString(const std::string& optionStr)
         {
+            if (!this->IsValid())
+                return false;
+
             // 在当前属性所属类的选项列表中查找
             auto classOptions = GetOptionListForThisClass();
             for (size_t i = 0; i < classOptions.size(); ++i)
@@ -243,6 +323,9 @@ namespace ROP
         // 通过索引设置选项
         bool SetOptionByIndex(int index)
         {
+            if (!this->IsValid())
+                return false;
+
             auto classOptions = GetOptionListForThisClass();
             if (index >= 0 && index < static_cast<int>(classOptions.size()))
             {
@@ -262,6 +345,9 @@ namespace ROP
         // 检查是否是选项属性
         bool IsOptional() const
         {
+            if (!this->IsValid())
+                return false;
+
             const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(this->GetMetaPtr());
             return meta && meta->isOptional;
         }
@@ -276,6 +362,9 @@ namespace ROP
         // 获取当前属性所属类的选项列表（从PropertyData中查找）
         std::vector<std::string> GetOptionListForThisClass() const
         {
+            if (!this->IsValid())
+                return {};
+
             const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(this->GetMetaPtr());
             if (!meta || !meta->isOptional)
                 return {};
@@ -303,6 +392,9 @@ namespace ROP
         void InitializeOptionList()
         {
             m_optionList.clear();
+
+            if (!this->IsValid())
+                return;
 
             const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(this->GetMetaPtr());
             if (!meta || !meta->isOptional)
@@ -404,6 +496,12 @@ namespace ROP
             {
                 propertyData.optionalPropertyMap[parentPair.first] = parentPair.second;
             }
+
+            // 递归注册祖先类的描述
+            for (const auto& parentPair : parentPropertyData.descriptionMap)
+            {
+                propertyData.descriptionMap[parentPair.first] = parentPair.second;
+            }
         }
 
         // 构建所有父类名称列表
@@ -456,15 +554,23 @@ namespace ROP
             }
         }
 
-        // 构建所有属性列表（包括父类）
+        // 构建所有属性列表（包括父类） - 允许同名属性，先子类后父类，且每个类内有序
         static void BuildAllPropertiesList(PropertyData<EnumType>& propertyData)
         {
             propertyData.allPropertiesList.clear();
+            propertyData.allPropertiesMultiMap.clear();
 
-            // 获取所有父类名称（按继承顺序）
+            // 获取所有父类名称（按继承顺序：直接父类在前，最远祖先在后）
             auto& allParentsName = propertyData.allParentsName;
 
-            // 首先添加所有父类的属性
+            // 第一步：首先添加自己的属性（按注册顺序）
+            for (const auto& prop : propertyData.ownPropertiesList)
+            {
+                propertyData.allPropertiesList.push_back(prop);
+                propertyData.allPropertiesMultiMap.insert({ prop.name, prop });
+            }
+
+            // 第二步：然后按继承顺序添加父类的属性（从直接父类到最远祖先）
             for (const auto& parentClassName : allParentsName)
             {
                 auto it = propertyData.parentPropertiesListMap.find(parentClassName);
@@ -473,42 +579,35 @@ namespace ROP
                     for (const auto& prop : it->second)
                     {
                         propertyData.allPropertiesList.push_back(prop);
+                        propertyData.allPropertiesMultiMap.insert({ prop.name, prop });
                     }
-                }
-            }
-
-            // 然后添加自己的属性（会覆盖父类的同名属性）
-            for (const auto& prop : propertyData.ownPropertiesList)
-            {
-                bool found = false;
-                // 查找是否已有同名属性
-                for (auto& existingProp : propertyData.allPropertiesList)
-                {
-                    if (existingProp.name == prop.name)
-                    {
-                        existingProp = prop; // 替换为子类的属性
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    propertyData.allPropertiesList.push_back(prop);
                 }
             }
         }
 
-        // 合并所有属性到完整属性表
-        static void MergeAllProperties(PropertyData<EnumType>& propertyData)
+        // 初始化属性数据（合并多个步骤）
+        static void InitializePropertyData(PropertyData<EnumType>& propertyData)
         {
+            // 初始化直接属性映射
+            propertyData.directPropertyMap.clear();
+            for (const auto& propPair : propertyData.ownPropertyMap)
+            {
+                propertyData.directPropertyMap[propPair.first] = propPair.second;
+            }
+
+            // 合并所有属性到完整属性表（同名属性只保留一个，优先子类）
             propertyData.combinedPropertyMap.clear();
 
-            // 首先添加所有父类的属性
+            // 先添加所有父类的属性
             for (const auto& classPair : propertyData.parentPropertyMaps)
             {
                 for (const auto& propPair : classPair.second)
                 {
-                    propertyData.combinedPropertyMap[propPair.first] = propPair.second;
+                    // 如果还没有这个属性（同名），则添加
+                    if (propertyData.combinedPropertyMap.find(propPair.first) == propertyData.combinedPropertyMap.end())
+                    {
+                        propertyData.combinedPropertyMap[propPair.first] = propPair.second;
+                    }
                 }
             }
 
@@ -517,38 +616,16 @@ namespace ROP
             {
                 propertyData.combinedPropertyMap[propPair.first] = propPair.second;
             }
-        }
 
-        // 合并所有属性到多映射表（允许多个同名属性）
-        static void MergeAllPropertiesMulti(PropertyData<EnumType>& propertyData)
-        {
-            propertyData.allPropertiesMultiMap.clear();
-
-            // 首先添加所有父类的属性
-            for (const auto& classPair : propertyData.parentPropertyMaps)
+            // 按照注册顺序初始化自身属性列表
+            propertyData.ownPropertiesList.clear();
+            for (const auto& name : propertyData.orderedPropertyNames)
             {
-                for (const auto& propPair : classPair.second)
+                auto it = propertyData.ownPropertyMap.find(name);
+                if (it != propertyData.ownPropertyMap.end())
                 {
-                    propertyData.allPropertiesMultiMap.insert({ propPair.first, propPair.second });
+                    propertyData.ownPropertiesList.push_back(it->second);
                 }
-            }
-
-            // 然后添加自己的属性
-            for (const auto& propPair : propertyData.ownPropertyMap)
-            {
-                propertyData.allPropertiesMultiMap.insert({ propPair.first, propPair.second });
-            }
-        }
-
-        // 初始化直接属性映射
-        static void InitDirectPropertyMap(PropertyData<EnumType>& propertyData)
-        {
-            propertyData.directPropertyMap.clear();
-
-            // 只添加自己的属性
-            for (const auto& propPair : propertyData.ownPropertyMap)
-            {
-                propertyData.directPropertyMap[propPair.first] = propPair.second;
             }
         }
     };
@@ -557,42 +634,73 @@ namespace ROP
     template<typename EnumType>
     class PropertyObject
     {
+        friend class Property<EnumType>;
     public:
         using EnumClass = EnumType;
         using PropertyDataType = PropertyData<EnumType>;
 
         virtual ~PropertyObject() = default;
 
-        // 虚函数：获取自身可用属性列表（包括继承的）
-        virtual const PropertyList<EnumType>& GetAllPropertiesList() const = 0;
-
         // 获取类名
         virtual std::string GetClassName() const = 0;
-
-        // 获取父类名列表
-        virtual const ClassNameList<EnumType>& GetAllParentsName() const = 0;
-
-        // 获取自身定义的属性（不包含继承的）
-        virtual const PropertyList<EnumType>& GetOwnPropertiesList() const = 0;
-
-        // 获取所有属性（包括继承的，允许多个同名的属性）
-        virtual const PropertyMultiMap<EnumType>& GetAllPropertiesMultiMap() const = 0;
-
-        // 获取父类属性映射表
-        virtual const std::unordered_map<std::string, PropertyMap<EnumType>>& GetParentPropertiesMap() const = 0;
-
-        // 获取直接属性映射（仅包含自身属性，O(1)查找）
-        virtual const PropertyMap<EnumType>& GetDirectPropertyMap() const = 0;
-
-        // 获取指定父类的属性列表（有序）
-        virtual const PropertyList<EnumType>& GetParentPropertiesList(const std::string& parentClassName) const = 0;
 
         // 获取属性数据结构体（供OptionalProperty使用）
         virtual const PropertyData<EnumType>& GetPropertyData() const = 0;
 
         static void StaticInitializeProperties() {};
 
-        // 通过名称获取属性包装对象
+        // 公共成员函数 - 通过GetPropertyData()统一访问
+
+        // 获取父类名列表
+        const ClassNameList<EnumType>& GetAllParentsName() const
+        {
+            return GetPropertyData().allParentsName;
+        }
+
+        // 获取自身定义的属性（不包含继承的）
+        const PropertyList<EnumType>& GetOwnPropertiesList() const
+        {
+            return GetPropertyData().ownPropertiesList;
+        }
+
+        // 获取所有属性（包括继承的，允许多个同名的属性）
+        const PropertyMultiMap<EnumType>& GetAllPropertiesMultiMap() const
+        {
+            return GetPropertyData().allPropertiesMultiMap;
+        }
+
+        // 获取父类属性映射表
+        const std::unordered_map<std::string, PropertyMap<EnumType>>& GetParentPropertiesMap() const
+        {
+            return GetPropertyData().parentPropertyMaps;
+        }
+
+        // 获取直接属性映射（仅包含自身属性，O(1)查找）
+        const PropertyMap<EnumType>& GetDirectPropertyMap() const
+        {
+            return GetPropertyData().directPropertyMap;
+        }
+
+        // 获取指定父类的属性列表（有序）
+        const PropertyList<EnumType>& GetParentPropertiesList(const std::string& parentClassName) const
+        {
+            const auto& parentPropertiesListMap = GetPropertyData().parentPropertiesListMap;
+            auto it = parentPropertiesListMap.find(parentClassName);
+            if (it != parentPropertiesListMap.end())
+            {
+                return it->second;
+            }
+            static PropertyList<EnumType> emptyList;
+            return emptyList;
+        }
+
+        // 获取自身可用属性列表（包括继承的，允许同名）
+        const PropertyList<EnumType>& GetAllPropertiesList() const
+        {
+            return GetPropertyData().allPropertiesList;
+        }
+
+        // 通过名称获取属性包装对象 - 如果有多个同名属性，返回第一个（子类的）
         Property<EnumType> GetProperty(const std::string& name) const
         {
             // 优先从直接属性映射中查找（O(1)）
@@ -612,10 +720,11 @@ namespace ROP
                 return Property<EnumType>(range.first->second.enumType, &range.first->second, const_cast<PropertyObject<EnumType>*>(this));
             }
 
-            throw std::runtime_error("Property not found: " + name);
+            // 找不到时返回无效的Property对象
+            return Property<EnumType>();
         }
 
-        // 通过名称和类名获取属性包装对象
+        // 通过名称和类名获取属性包装对象 - 精确查找特定类的属性
         Property<EnumType> GetProperty(const std::string& name, const std::string& className) const
         {
             auto& allProps = GetAllPropertiesMultiMap();
@@ -628,9 +737,41 @@ namespace ROP
                     return Property<EnumType>(it->second.enumType, &it->second, const_cast<PropertyObject<EnumType>*>(this));
                 }
             }
-            throw std::runtime_error("Property not found: " + name + " in class " + className);
+
+            // 找不到时返回无效的Property对象
+            return Property<EnumType>();
         }
 
+        // 获取所有同名属性（返回列表）
+        std::vector<Property<EnumType>> GetAllPropertiesByName(const std::string& name) const
+        {
+            std::vector<Property<EnumType>> result;
+            auto& allProps = GetAllPropertiesMultiMap();
+            auto range = allProps.equal_range(name);
+
+            for (auto it = range.first; it != range.second; ++it)
+            {
+                result.push_back(Property<EnumType>(it->second.enumType, &it->second, const_cast<PropertyObject<EnumType>*>(this)));
+            }
+
+            return result;
+        }
+
+        // 获取所有属性（包括继承的），按顺序（先子类后父类，每个类内按注册顺序）
+        std::vector<Property<EnumType>> GetAllPropertiesOrdered() const
+        {
+            std::vector<Property<EnumType>> result;
+            const auto& allPropsList = GetAllPropertiesList();
+
+            for (const auto& meta : allPropsList)
+            {
+                result.push_back(Property<EnumType>(meta.enumType, &meta, const_cast<PropertyObject<EnumType>*>(this)));
+            }
+
+            return result;
+        }
+
+    protected:
         // 内部方法：通过属性元数据指针获取属性值
         template<typename T>
         T GetPropertyValue(const void* metaPtr) const
@@ -652,61 +793,7 @@ namespace ROP
             T temp = value;
             meta->setter(const_cast<PropertyObject<EnumType>*>(this), &temp);
         }
-
-        // 通过名称获取属性值（兼容旧代码）
-        template<typename T>
-        T GetPropertyValueByName(const std::string& name) const
-        {
-            // 优先从直接属性映射中查找（O(1)）
-            const auto& directMap = GetDirectPropertyMap();
-            auto it = directMap.find(name);
-            if (it != directMap.end())
-            {
-                void* ptr = it->second.getter(const_cast<PropertyObject<EnumType>*>(this));
-                return *reinterpret_cast<T*>(ptr);
-            }
-
-            // 如果直接映射中没找到，再从所有属性中查找
-            auto& allProps = GetAllPropertiesMultiMap();
-            auto range = allProps.equal_range(name);
-
-            if (range.first != range.second)
-            {
-                void* ptr = range.first->second.getter(const_cast<PropertyObject<EnumType>*>(this));
-                return *reinterpret_cast<T*>(ptr);
-            }
-
-            throw std::runtime_error("Property not found: " + name);
-        }
-
-        // 通过名称设置属性值（兼容旧代码）
-        template<typename T>
-        void SetPropertyValueByName(const std::string& name, const T& value)
-        {
-            // 优先从直接属性映射中查找（O(1)）
-            const auto& directMap = GetDirectPropertyMap();
-            auto it = directMap.find(name);
-            if (it != directMap.end())
-            {
-                T temp = value;
-                it->second.setter(const_cast<PropertyObject<EnumType>*>(this), &temp);
-                return;
-            }
-
-            // 如果直接映射中没找到，再从所有属性中查找
-            auto& allProps = GetAllPropertiesMultiMap();
-            auto range = allProps.equal_range(name);
-
-            if (range.first != range.second)
-            {
-                T temp = value;
-                range.first->second.setter(const_cast<PropertyObject<EnumType>*>(this), &temp);
-                return;
-            }
-
-            throw std::runtime_error("Property not found: " + name);
-        }
-
+    public:
         // 查找属性（检查所有属性，包括继承的）
         bool HasProperty(const std::string& name) const
         {
@@ -773,6 +860,12 @@ namespace ROP
         // 将Property转换为OptionalProperty
         OptionalProperty<EnumType> ToOptionalProperty(const Property<EnumType>& prop) const
         {
+            // 如果属性无效，返回无效的OptionalProperty
+            if (!prop.IsValid())
+            {
+                return OptionalProperty<EnumType>();
+            }
+
             const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(prop.GetMetaPtr());
 
             if (!meta || !meta->isOptional)
@@ -787,6 +880,10 @@ namespace ROP
         OptionalProperty<EnumType> GetPropertyAsOptional(const std::string& name) const
         {
             auto prop = GetProperty(name);
+            if (!prop.IsValid())
+            {
+                return OptionalProperty<EnumType>();
+            }
             return ToOptionalProperty(prop);
         }
 
@@ -794,23 +891,93 @@ namespace ROP
         OptionalProperty<EnumType> GetPropertyAsOptional(const std::string& name, const std::string& className) const
         {
             auto prop = GetProperty(name, className);
+            if (!prop.IsValid())
+            {
+                return OptionalProperty<EnumType>();
+            }
             return ToOptionalProperty(prop);
+        }
+
+        // 获取属性的描述
+        std::string GetPropertyDescription(const std::string& name) const
+        {
+            auto prop = GetProperty(name);
+            return prop.GetDescription();
+        }
+
+        // 获取属性和描述（返回包含名称和描述的字符串）
+        std::string GetPropertyWithDescription(const std::string& name) const
+        {
+            auto prop = GetProperty(name);
+            if (!prop.IsValid())
+            {
+                return name + " - [Invalid Property]";
+            }
+
+            std::string description = prop.GetDescription();
+            if (!description.empty())
+            {
+                return name + " - " + description;
+            }
+            return name;
+        }
+
+        // 获取所有同名属性，按顺序（先子类后父类，每个类内按注册顺序）
+        std::vector<Property<EnumType>> GetPropertiesByNameOrdered(const std::string& name) const
+        {
+            std::vector<Property<EnumType>> result;
+            const auto& allPropsList = GetAllPropertiesList();
+
+            for (const auto& meta : allPropsList)
+            {
+                if (meta.name == name)
+                {
+                    result.push_back(Property<EnumType>(meta.enumType, &meta, const_cast<PropertyObject<EnumType>*>(this)));
+                }
+            }
+
+            return result;
+        }
+
+        // 获取属性数量（包括同名属性）
+        size_t GetPropertyCount() const
+        {
+            return GetAllPropertiesList().size();
+        }
+
+        // 获取不重复的属性名称列表
+        std::vector<std::string> GetUniquePropertyNames() const
+        {
+            std::unordered_set<std::string> uniqueNames;
+            const auto& allPropsList = GetAllPropertiesList();
+
+            for (const auto& meta : allPropsList)
+            {
+                uniqueNames.insert(meta.name);
+            }
+
+            std::vector<std::string> result(uniqueNames.begin(), uniqueNames.end());
+            return result;
         }
     };
 
-    // 属性注册器模板类
+    // 属性注册器模板类（支持流式接口）
     template<typename EnumType, typename ClassType>
     class PropertyRegistrar
     {
     public:
-        // 注册属性（成员变量）
+        PropertyRegistrar(PropertyData<EnumType>& propertyData, const std::string& className)
+            : m_propertyData(propertyData), m_className(className)
+        {
+        }
+
+        // 注册属性（成员变量）- 流式接口（带描述）
         template<typename PropertyType>
-        static void RegisterProperty(
+        PropertyRegistrar& RegisterProperty(
             EnumType enumType,
             const std::string& name,
             PropertyType ClassType::* memberPtr,
-            PropertyData<EnumType>& propertyData,
-            const std::string& className)
+            const std::string& description = "")
         {
             // 计算偏移量 - 使用空指针技巧
             size_t offset = reinterpret_cast<size_t>(
@@ -838,28 +1005,37 @@ namespace ROP
             meta.enumType = enumType;
             meta.typeName = typeid(PropertyType).name();
             meta.offset = offset;
-            meta.className = className;
+            meta.className = m_className;
             meta.getter = getter;
             meta.setter = setter;
             meta.isCustomAccessor = false;
-            meta.registrationOrder = propertyData.registrationCounter++;
+            meta.registrationOrder = m_propertyData.registrationCounter++;
+            meta.description = description;
 
             // 记录注册顺序
-            propertyData.orderedPropertyNames.push_back(name);
+            m_propertyData.orderedPropertyNames.push_back(name);
 
             // 注册到属性容器
-            propertyData.ownPropertyMap[name] = meta;
+            m_propertyData.ownPropertyMap[name] = meta;
+
+            // 存储描述信息
+            if (!description.empty())
+            {
+                m_propertyData.descriptionMap[m_className][name] = description;
+            }
+
+            return *this;
         }
 
-        // 注册属性（自定义getter和setter）
+
+        // 注册属性（自定义getter和setter）- 流式接口（带描述）
         template<typename PropertyType>
-        static void RegisterPropertyEx(
+        PropertyRegistrar& RegisterProperty(
             EnumType enumType,
             const std::string& name,
             void (ClassType::* setterFunc)(PropertyType&),
             PropertyType& (ClassType::* getterFunc)(),
-            PropertyData<EnumType>& propertyData,
-            const std::string& className)
+            const std::string& description = "")
         {
             // 创建getter函数
             std::function<void* (PropertyObject<EnumType>*)> getter =
@@ -884,131 +1060,138 @@ namespace ROP
             meta.enumType = enumType;
             meta.typeName = typeid(PropertyType).name();
             meta.offset = 0; // 对于自定义访问器，偏移量无意义
-            meta.className = className;
+            meta.className = m_className;
             meta.getter = getter;
             meta.setter = setter;
             meta.isCustomAccessor = true;
-            meta.registrationOrder = propertyData.registrationCounter++;
+            meta.registrationOrder = m_propertyData.registrationCounter++;
+            meta.description = description;
 
             // 记录注册顺序
-            propertyData.orderedPropertyNames.push_back(name);
+            m_propertyData.orderedPropertyNames.push_back(name);
 
             // 注册到属性容器
-            propertyData.ownPropertyMap[name] = meta;
+            m_propertyData.ownPropertyMap[name] = meta;
+
+            // 存储描述信息
+            if (!description.empty())
+            {
+                m_propertyData.descriptionMap[m_className][name] = description;
+            }
+
+            return *this;
         }
 
-        // 注册选项属性（成员变量）
+
+        // 注册选项属性（成员变量）- 流式接口（带描述）
         template<typename PropertyType>
-        static void RegisterOptionalProperty(
+        PropertyRegistrar& RegisterOptionalProperty(
             EnumType enumType,
             const std::string& name,
             PropertyType ClassType::* memberPtr,
-            PropertyData<EnumType>& propertyData,
-            const std::string& className,
-            const std::vector<std::string>& options)
+            std::initializer_list<const char*> options,
+            const std::string& description = "")
         {
             // 首先注册普通属性
-            RegisterProperty(enumType, name, memberPtr, propertyData, className);
+            RegisterProperty(enumType, name, memberPtr, description);
+
+            // 转换选项列表
+            std::vector<std::string> optionVec;
+            for (const auto& option : options)
+            {
+                optionVec.push_back(option);
+            }
 
             // 然后标记为选项属性
-            auto& meta = propertyData.ownPropertyMap[name];
+            auto& meta = m_propertyData.ownPropertyMap[name];
             meta.isOptional = true;
 
             // 存储到选项映射中
-            propertyData.optionalPropertyMap[className][name] = options;
+            m_propertyData.optionalPropertyMap[m_className][name] = optionVec;
 
             // 验证选项映射值从0开始且连续
-            // 由于我们使用vector<string>，索引就是0,1,2...，天然满足条件
-            // 这里可以添加验证逻辑（可选）
-            if (!options.empty())
+            if (!optionVec.empty())
             {
                 // 检查是否有重复的选项字符串
                 std::unordered_set<std::string> optionSet;
-                for (const auto& option : options)
+                for (const auto& option : optionVec)
                 {
                     if (!optionSet.insert(option).second)
                     {
                         std::cerr << "Warning: Duplicate option string '" << option
-                            << "' in property '" << name << "' of class '" << className << "'" << std::endl;
+                            << "' in property '" << name << "' of class '" << m_className << "'" << std::endl;
                     }
                 }
             }
+
+            return *this;
         }
 
-        // 注册选项属性（自定义getter和setter）
+
+        // 注册选项属性（自定义getter和setter）- 流式接口（带描述）
         template<typename PropertyType>
-        static void RegisterOptionalPropertyEx(
+        PropertyRegistrar& RegisterOptionalProperty(
             EnumType enumType,
             const std::string& name,
             void (ClassType::* setterFunc)(PropertyType&),
             PropertyType& (ClassType::* getterFunc)(),
-            PropertyData<EnumType>& propertyData,
-            const std::string& className,
-            const std::vector<std::string>& options)
+            std::initializer_list<const char*> options,
+            const std::string& description = "")
         {
             // 首先注册自定义属性
-            RegisterPropertyEx(enumType, name, setterFunc, getterFunc, propertyData, className);
+            RegisterProperty(enumType, name, setterFunc, getterFunc, description);
+
+            // 转换选项列表
+            std::vector<std::string> optionVec;
+            for (const auto& option : options)
+            {
+                optionVec.push_back(option);
+            }
 
             // 然后标记为选项属性
-            auto& meta = propertyData.ownPropertyMap[name];
+            auto& meta = m_propertyData.ownPropertyMap[name];
             meta.isOptional = true;
 
             // 存储到选项映射中
-            propertyData.optionalPropertyMap[className][name] = options;
+            m_propertyData.optionalPropertyMap[m_className][name] = optionVec;
 
             // 验证选项映射值从0开始且连续（同上）
-            if (!options.empty())
+            if (!optionVec.empty())
             {
                 std::unordered_set<std::string> optionSet;
-                for (const auto& option : options)
+                for (const auto& option : optionVec)
                 {
                     if (!optionSet.insert(option).second)
                     {
                         std::cerr << "Warning: Duplicate option string '" << option
-                            << "' in property '" << name << "' of class '" << className << "'" << std::endl;
+                            << "' in property '" << name << "' of class '" << m_className << "'" << std::endl;
                     }
                 }
             }
+
+            return *this;
         }
 
-        // 获取类的属性列表（按照注册顺序）
-        static const PropertyList<EnumType>& GetClassProperties(const PropertyMap<EnumType>& propertyMap,
-            const std::vector<std::string>& orderedNames)
+        // 设置已注册属性的描述
+        PropertyRegistrar& SetDescription(const std::string& name, const std::string& description)
         {
-            static PropertyList<EnumType> properties;
-            properties.clear();
-            properties.reserve(propertyMap.size());
-
-            // 按照注册顺序添加属性
-            for (const auto& name : orderedNames)
+            auto it = m_propertyData.ownPropertyMap.find(name);
+            if (it != m_propertyData.ownPropertyMap.end())
             {
-                auto it = propertyMap.find(name);
-                if (it != propertyMap.end())
-                {
-                    properties.push_back(it->second);
-                }
+                it->second.description = description;
+                m_propertyData.descriptionMap[m_className][name] = description;
             }
-
-            return properties;
+            return *this;
         }
 
-        // 获取类的属性多映射
-        static PropertyMultiMap<EnumType> GetClassPropertiesMulti(const PropertyMap<EnumType>& propertyMap)
-        {
-            PropertyMultiMap<EnumType> multiMap;
-
-            for (const auto& pair : propertyMap)
-            {
-                multiMap.insert({ pair.first, pair.second });
-            }
-
-            return multiMap;
-        }
+    private:
+        PropertyData<EnumType>& m_propertyData;
+        std::string m_className;
     };
 
 } // namespace ROP
 
-// ==================== 改进的宏定义 ====================
+// ==================== 新的流式注册宏定义 ====================
 
 // 辅助宏：初始化属性系统
 #define INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName) \
@@ -1027,23 +1210,10 @@ namespace ROP
         } \
         \
         using ParentClass = ParentClassName; \
-        std::string ParentClassNameString = #ParentClassName; \
+        std::string ParentClassNameString = #ParentClassName;
 
-// 辅助宏：完成属性系统初始化
+// 辅助宏：完成属性系统初始化（合并后的版本）
 #define FINALIZE_PROPERTY_SYSTEM(EnumType, ClassName) \
-        /* 初始化直接属性映射 */ \
-        ROP::PropertySystemUtils<EnumType>::InitDirectPropertyMap(propertyData); \
-        \
-        /* 合并所有属性 */ \
-        ROP::PropertySystemUtils<EnumType>::MergeAllProperties(propertyData); \
-        ROP::PropertySystemUtils<EnumType>::MergeAllPropertiesMulti(propertyData); \
-        \
-        /* 按照注册顺序初始化属性列表 */ \
-        propertyData.propertiesList = ROP::PropertyRegistrar<EnumType, ClassName>::GetClassProperties( \
-            propertyData.combinedPropertyMap, propertyData.orderedPropertyNames); \
-        propertyData.ownPropertiesList = ROP::PropertyRegistrar<EnumType, ClassName>::GetClassProperties( \
-            propertyData.ownPropertyMap, propertyData.orderedPropertyNames); \
-        \
         /* 构建父类名称列表 */ \
         ROP::PropertySystemUtils<EnumType>::BuildAllParentsNameList<ParentClass>( \
             propertyData, ParentClassNameString); \
@@ -1051,7 +1221,10 @@ namespace ROP
         /* 构建父类属性列表映射 */ \
         ROP::PropertySystemUtils<EnumType>::BuildParentPropertiesListMap(propertyData); \
         \
-        /* 构建所有属性列表（包括父类） */ \
+        /* 使用合并函数初始化属性数据 */ \
+        ROP::PropertySystemUtils<EnumType>::InitializePropertyData(propertyData); \
+        \
+        /* 构建所有属性列表（包括父类，允许同名） */ \
         ROP::PropertySystemUtils<EnumType>::BuildAllPropertiesList(propertyData); \
         \
         propertyData.initialized = true; \
@@ -1073,47 +1246,17 @@ public: \
     /* 静态初始化函数 */ \
     static bool StaticInitializeProperties() { \
         static bool s_initialized = []() -> bool { \
-            INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName)
+            INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName) \
+            \
+            /* 创建注册器对象 */ \
+            ROP::PropertyRegistrar<EnumClass, ClassName> registrar(propertyData, classnamestring); 
 
 // 简化宏：用于没有父类的情况
 #define DECLARE_OBJECT(EnumType, ClassName) DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ROP::PropertyObject<EnumType>)
 
-// 注册属性宏（在StaticInitializeProperties函数内使用）
-#define REGISTER_PROPERTY(EnumValue, Type, Name) \
-            ROP::PropertyRegistrar<EnumClass, CurrentClass>:: \
-            RegisterProperty<Type>(EnumValue, #Name, &CurrentClass::Name, propertyData, classnamestring);
-
-// 注册自定义getter/setter属性宏
-#define REGISTER_PROPERTY_EX(EnumValue, Type, SetterFunc, GetterFunc) \
-            ROP::PropertyRegistrar<EnumClass, CurrentClass>:: \
-            RegisterPropertyEx<Type>(EnumValue, #GetterFunc, &CurrentClass::SetterFunc, &CurrentClass::GetterFunc, propertyData, classnamestring);
-
-// 注册选项属性宏（通用版本，支持任何可以转换为int的类型）
-#define REGISTER_OPTIONAL_PROPERTY(EnumValue, ValueType, PropertyName, ...) \
-    do { \
-        /* 获取字符串选项列表 */ \
-        std::vector<std::string> optionStrs = {__VA_ARGS__}; \
-        \
-        /* 注册属性 */ \
-        ROP::PropertyRegistrar<EnumClass, CurrentClass>:: \
-        RegisterOptionalProperty<ValueType>( \
-            EnumValue, #PropertyName, &CurrentClass::PropertyName, propertyData, classnamestring, optionStrs); \
-    } while(0);
-
-// 注册自定义getter/setter的选项属性宏
-#define REGISTER_OPTIONAL_PROPERTY_EX(EnumValue, ValueType, SetterFunc, GetterFunc, ...) \
-    do { \
-        /* 获取字符串选项列表 */ \
-        std::vector<std::string> optionStrs = {__VA_ARGS__}; \
-        \
-        /* 注册属性 */ \
-        ROP::PropertyRegistrar<EnumClass, CurrentClass>:: \
-        RegisterOptionalPropertyEx<ValueType>( \
-            EnumValue, #GetterFunc, &CurrentClass::SetterFunc, &CurrentClass::GetterFunc, propertyData, classnamestring, optionStrs); \
-    } while(0);
-
 // 结束宏
 #define END_DECLARE_OBJECT(EnumType, ClassName, ParentClassName) \
+            /* 完成属性系统初始化 */ \
             FINALIZE_PROPERTY_SYSTEM(EnumType, ClassName) \
         }(); \
         return s_initialized; \
@@ -1132,178 +1275,4 @@ public: \
         EnsurePropertySystemInitialized(); \
         return GetPropertyDataStatic(); \
     } \
-    \
-    virtual const ROP::ClassNameList<EnumType>& GetAllParentsName() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().allParentsName; \
-    } \
-    \
-    virtual const ROP::PropertyList<EnumType>& GetOwnPropertiesList() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().ownPropertiesList; \
-    } \
-    \
-    virtual const ROP::PropertyList<EnumType>& GetAllPropertiesList() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().allPropertiesList; \
-    } \
-    \
-    virtual const ROP::PropertyMultiMap<EnumType>& GetAllPropertiesMultiMap() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().allPropertiesMultiMap; \
-    } \
-    \
-    virtual const std::unordered_map<std::string, ROP::PropertyMap<EnumType>>& GetParentPropertiesMap() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().parentPropertyMaps; \
-    } \
-    \
-    virtual const ROP::PropertyMap<EnumType>& GetDirectPropertyMap() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic().directPropertyMap; \
-    } \
-    \
-    virtual const ROP::PropertyList<EnumType>& GetParentPropertiesList(const std::string& parentClassName) const override { \
-        EnsurePropertySystemInitialized(); \
-        auto& parentPropertiesListMap = GetPropertyDataStatic().parentPropertiesListMap; \
-        auto it = parentPropertiesListMap.find(parentClassName); \
-        if (it != parentPropertiesListMap.end()) { \
-            return it->second; \
-        } \
-        static ROP::PropertyList<EnumType> emptyList; \
-        return emptyList; \
-    } \
 private:
-
-// ==================== 使用示例 ====================
-/*
-// 定义属性枚举类型
-enum class MyObjectType
-{
-    OPTIONAL,
-    INT,
-    FLOAT,
-    DOUBLE,
-    STRING,
-    BOOL,
-    VECTOR3,
-    COLOR,
-    CUSTOM_TYPE
-};
-
-// 基类
-class BaseObject : public ROP::PropertyObject<MyObjectType>
-{
-    DECLARE_OBJECT(MyObjectType, BaseObject)
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, mode, "Off", "On", "Auto")
-    REGISTER_PROPERTY(MyObjectType::INT, int, value)
-    REGISTER_PROPERTY(MyObjectType::STRING, std::string, tag)
-    END_DECLARE_OBJECT(MyObjectType, BaseObject, ROP::PropertyObject<MyObjectType>)
-
-public:
-    BaseObject() : mode(0), value(0) {}
-
-    int mode; // 0: Off, 1: On, 2: Auto
-    int value;
-    std::string tag;
-};
-
-// 派生类
-class DerivedObject : public BaseObject
-{
-    DECLARE_OBJECT_WITH_PARENT(MyObjectType, DerivedObject, BaseObject)
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, mode, "Disabled", "Enabled", "Super") // 重写父类的mode
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, level, "Low", "Medium", "High")
-    END_DECLARE_OBJECT(MyObjectType, DerivedObject, BaseObject)
-
-public:
-    DerivedObject() : mode(0), level(0) {}
-
-    int mode;   // 0: Disabled, 1: Enabled, 2: Super (重写父类)
-    int level;  // 0: Low, 1: Medium, 2: High
-};
-
-// 测试函数
-void TestOptionalPropertySystem()
-{
-    std::cout << "\n=== 测试选项属性系统 ===" << std::endl;
-
-    DerivedObject obj;
-    obj.mode = 1; // Enabled
-    obj.level = 2; // High
-    obj.value = 100;
-    obj.tag = "Test";
-
-    // 测试获取可选属性
-    std::cout << "\n1. 获取DerivedObject的mode属性:" << std::endl;
-    auto modeProp = obj.GetPropertyAsOptional("mode");
-    std::cout << "Mode string: " << modeProp.GetOptionString()
-              << " (value: " << modeProp.GetValue<int>() << ")" << std::endl;
-
-    std::cout << "Option list (" << modeProp.GetOptionCount() << " options): ";
-    auto options = modeProp.GetOptionList();
-    for (size_t i = 0; i < options.size(); ++i)
-    {
-        std::cout << i << ":" << options[i] << " ";
-    }
-    std::cout << std::endl;
-
-    // 测试通过字符串设置选项
-    std::cout << "\n2. 通过字符串设置mode属性:" << std::endl;
-    if (modeProp.SetOptionByString("Super"))
-    {
-        std::cout << "Mode changed to: " << modeProp.GetOptionString()
-                  << " (value: " << obj.mode << ")" << std::endl;
-    }
-
-    // 测试获取父类的原始属性
-    std::cout << "\n3. 获取BaseObject的mode属性:" << std::endl;
-    auto baseModeProp = obj.GetPropertyAsOptional("mode", "BaseObject");
-    std::cout << "Base mode string: " << baseModeProp.GetOptionString()
-              << " (value: " << baseModeProp.GetValue<int>() << ")" << std::endl;
-
-    std::cout << "Base option list: ";
-    auto baseOptions = baseModeProp.GetOptionList();
-    for (size_t i = 0; i < baseOptions.size(); ++i)
-    {
-        std::cout << i << ":" << baseOptions[i] << " ";
-    }
-    std::cout << std::endl;
-
-    // 测试自定义属性
-    std::cout << "\n4. 获取level属性:" << std::endl;
-    auto levelProp = obj.GetPropertyAsOptional("level");
-    std::cout << "Level string: " << levelProp.GetOptionString()
-              << " (value: " << levelProp.GetValue<int>() << ")" << std::endl;
-
-    // 测试非选项属性的转换
-    std::cout << "\n5. 测试非选项属性的转换:" << std::endl;
-    try
-    {
-        auto valueProp = obj.GetPropertyAsOptional("value");
-        std::cout << "This should not print" << std::endl;
-    }
-    catch (const std::runtime_error& e)
-    {
-        std::cout << "Error correctly caught: " << e.what() << std::endl;
-    }
-
-    // 测试通过索引设置选项
-    std::cout << "\n6. 通过索引设置level属性:" << std::endl;
-    if (levelProp.SetOptionByIndex(0)) // 设置为Low
-    {
-        std::cout << "Level changed to: " << levelProp.GetOptionString()
-                  << " (value: " << obj.level << ")" << std::endl;
-    }
-
-    // 测试Property和OptionalProperty的转换
-    std::cout << "\n7. 测试Property和OptionalProperty的转换:" << std::endl;
-    // 先获取普通Property
-    auto normalProp = obj.GetProperty("level");
-    std::cout << "Normal property value: " << normalProp.GetValue<int>() << std::endl;
-
-    // 转换为OptionalProperty
-    auto optionalProp = obj.ToOptionalProperty(normalProp);
-    std::cout << "Converted to optional property, string: " << optionalProp.GetOptionString() << std::endl;
-}
-*/

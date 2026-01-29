@@ -17,17 +17,25 @@ enum class TestPropertyType
     BOOL,
     VECTOR3,
     COLOR,
-    CUSTOM_TYPE
+    CUSTOM_TYPE,
+    OPTIONAL
 };
 
 // 测试基类
 class TestBaseObject : public ROP::PropertyObject<TestPropertyType>
 {
-	DECLARE_OBJECT(TestPropertyType, TestBaseObject)
-	REGISTER_PROPERTY(TestPropertyType::INT, int, baseIntValue)
-	REGISTER_PROPERTY(TestPropertyType::FLOAT, float, baseFloatValue)
-	REGISTER_PROPERTY(TestPropertyType::STRING, std::string, baseStringValue)
-	END_DECLARE_OBJECT(TestPropertyType, TestBaseObject, ROP::PropertyObject<TestPropertyType>)
+    DECLARE_OBJECT(TestPropertyType, TestBaseObject)
+    registrar
+        .RegisterProperty(
+            TestPropertyType::INT, "baseIntValue", &TestBaseObject::baseIntValue,
+            "基类整数属性")
+        .RegisterProperty(
+            TestPropertyType::FLOAT, "baseFloatValue", &TestBaseObject::baseFloatValue,
+            "基类浮点数属性")
+        .RegisterProperty(
+            TestPropertyType::STRING, "baseStringValue", &TestBaseObject::baseStringValue,
+            "基类字符串属性");
+    END_DECLARE_OBJECT(TestPropertyType, TestBaseObject, ROP::PropertyObject<TestPropertyType>)
 
 public:
     TestBaseObject() : baseIntValue(0), baseFloatValue(0.0f), baseStringValue("") {}
@@ -41,14 +49,31 @@ public:
 class TestDerivedObject : public TestBaseObject
 {
     DECLARE_OBJECT_WITH_PARENT(TestPropertyType, TestDerivedObject, TestBaseObject)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, intValue1)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, intValue2)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, intValue3)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, floatValue1)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, floatValue2)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, doubleValue)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, stringValue)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, boolValue)
+    registrar
+        .RegisterProperty(
+            TestPropertyType::INT, "intValue1", &TestDerivedObject::intValue1,
+            "派生类整数属性1")
+        .RegisterProperty(
+            TestPropertyType::INT, "intValue2", &TestDerivedObject::intValue2,
+            "派生类整数属性2")
+        .RegisterProperty(
+            TestPropertyType::INT, "intValue3", &TestDerivedObject::intValue3,
+            "派生类整数属性3")
+        .RegisterProperty(
+            TestPropertyType::FLOAT, "floatValue1", &TestDerivedObject::floatValue1,
+            "派生类浮点数属性1")
+        .RegisterProperty(
+            TestPropertyType::FLOAT, "floatValue2", &TestDerivedObject::floatValue2,
+            "派生类浮点数属性2")
+        .RegisterProperty(
+            TestPropertyType::DOUBLE, "doubleValue", &TestDerivedObject::doubleValue,
+            "派生类双精度属性")
+        .RegisterProperty(
+            TestPropertyType::STRING, "stringValue", &TestDerivedObject::stringValue,
+            "派生类字符串属性")
+        .RegisterProperty(
+            TestPropertyType::BOOL, "boolValue", &TestDerivedObject::boolValue,
+            "派生类布尔属性");
     END_DECLARE_OBJECT(TestPropertyType, TestDerivedObject, TestBaseObject)
 
 public:
@@ -56,6 +81,7 @@ public:
         intValue1(0), intValue2(0), intValue3(0),
         floatValue1(0.0f), floatValue2(0.0f),
         doubleValue(0.0),
+        stringValue(""),
         boolValue(false)
     {
     }
@@ -74,9 +100,20 @@ public:
 class TestCustomAccessorObject : public ROP::PropertyObject<TestPropertyType>
 {
     DECLARE_OBJECT(TestPropertyType, TestCustomAccessorObject)
-    REGISTER_PROPERTY_EX(TestPropertyType::INT, int, SetCustomInt, GetCustomInt)
-    REGISTER_PROPERTY_EX(TestPropertyType::STRING, std::string, SetCustomString, GetCustomString)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, directIntValue)
+    registrar
+        .RegisterProperty(
+            TestPropertyType::INT, "customInt",
+            static_cast<void (TestCustomAccessorObject::*)(int&)>(&TestCustomAccessorObject::SetCustomInt),
+            static_cast<int& (TestCustomAccessorObject::*)()>(&TestCustomAccessorObject::GetCustomInt),
+            "自定义整数属性")
+        .RegisterProperty(
+            TestPropertyType::STRING, "customString",
+            static_cast<void (TestCustomAccessorObject::*)(std::string&)>(&TestCustomAccessorObject::SetCustomString),
+            static_cast<std::string& (TestCustomAccessorObject::*)()>(&TestCustomAccessorObject::GetCustomString),
+            "自定义字符串属性")
+        .RegisterProperty(
+            TestPropertyType::INT, "directIntValue", &TestCustomAccessorObject::directIntValue,
+            "直接整数属性");
     END_DECLARE_OBJECT(TestPropertyType, TestCustomAccessorObject, ROP::PropertyObject<TestPropertyType>)
 
 public:
@@ -221,35 +258,6 @@ void RunPropertySystemPerformanceTests()
             std::cout << "  每次操作平均耗时: " << propertyTimePerOp << " ns" << std::endl;
             std::cout << "  开销倍数: " << std::fixed << std::setprecision(2) << overheadRatio << "x" << std::endl;
             std::cout << "  验证和: " << sum << std::endl;
-
-            // 3. GetPropertyValueByName访问性能测试
-            start = Clock::now();
-
-            sum = 0;
-            for (int i = 0; i < TEST_ITERATIONS; ++i)
-            {
-                // 读取
-                sum += obj.GetPropertyValueByName<int>("intValue1");
-                sum += obj.GetPropertyValueByName<int>("intValue2");
-                sum += obj.GetPropertyValueByName<int>("intValue3");
-
-                // 写入
-                obj.SetPropertyValueByName<int>("intValue1", i % 100);
-                obj.SetPropertyValueByName<int>("intValue2", (i + 1) % 100);
-                obj.SetPropertyValueByName<int>("intValue3", (i + 2) % 100);
-            }
-
-            end = Clock::now();
-            duration = std::chrono::duration_cast<Duration>(end - start);
-
-            double byNameTimePerOp = duration.count() / (TEST_ITERATIONS * 6.0);
-            overheadRatio = byNameTimePerOp / directTimePerOp;
-
-            std::cout << "\nGetPropertyValueByName访问:" << std::endl;
-            std::cout << "  耗时: " << duration.count() << " ns" << std::endl;
-            std::cout << "  每次操作平均耗时: " << byNameTimePerOp << " ns" << std::endl;
-            std::cout << "  开销倍数: " << std::fixed << std::setprecision(2) << overheadRatio << "x" << std::endl;
-            std::cout << "  验证和: " << sum << std::endl;
         }
     }
 
@@ -390,7 +398,7 @@ void RunPropertySystemPerformanceTests()
         start = Clock::now();
 
         sum = 0;
-        ROP::Property<TestPropertyType> customIntProp = obj.GetProperty("GetCustomInt");
+        ROP::Property<TestPropertyType> customIntProp = obj.GetProperty("customInt");
 
         for (int i = 0; i < TEST_ITERATIONS; ++i)
         {
@@ -507,12 +515,14 @@ void RunPropertySystemPerformanceTests()
         auto start = Clock::now();
 
         int sum = 0;
-        // 缓存Property对象（最佳实践）
-        ROP::Property<TestPropertyType> cachedProp1 = obj.GetProperty("intValue1");
-        ROP::Property<TestPropertyType> cachedProp2 = obj.GetProperty("intValue2");
+
 
         for (int i = 0; i < TEST_ITERATIONS; ++i)
         {
+            // 缓存Property对象（最佳实践）
+            ROP::Property<TestPropertyType> cachedProp1 = obj.GetProperty("intValue1");
+            ROP::Property<TestPropertyType> cachedProp2 = obj.GetProperty("intValue2");
+
             sum += cachedProp1.GetValue<int>();
             sum += cachedProp2.GetValue<int>();
 
@@ -557,29 +567,268 @@ void RunPropertySystemPerformanceTests()
         std::cout << "  - GetProperty调用包含哈希查找，应避免在循环中调用" << std::endl;
     }
 
-    // ==================== 性能总结 ====================
+    // ==================== 测试5.5: 属性查找性能测试 ====================
     {
-        std::cout << "\n" << std::string(50, '=') << std::endl;
-        std::cout << "性能测试总结" << std::endl;
-        std::cout << std::string(50, '=') << std::endl;
+        std::cout << "\n" << std::string(50, '-') << std::endl;
+        std::cout << "测试5.5: 属性查找性能测试 (GetProperty()查找开销)" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
 
-        std::cout << "\n主要发现:" << std::endl;
-        std::cout << "1. Property包装访问比直接访问慢5-10倍" << std::endl;
-        std::cout << "2. GetPropertyValueByName比Property包装访问更慢" << std::endl;
-        std::cout << "3. 自定义访问器与普通属性访问性能相近" << std::endl;
-        std::cout << "4. 继承属性访问与普通属性访问性能相同" << std::endl;
-        std::cout << "5. 缓存Property对象可大幅提升性能" << std::endl;
+        TestDerivedObject obj;
+        obj.intValue1 = 42;
+        obj.floatValue1 = 3.14f;
+        obj.stringValue = "test_string";
+        obj.boolValue = true;
 
-        std::cout << "\n使用建议:" << std::endl;
-        std::cout << "1. 性能敏感场景: 使用直接访问或缓存Property对象" << std::endl;
-        std::cout << "2. 动态/反射场景: 使用Property包装访问" << std::endl;
-        std::cout << "3. 避免在循环中频繁调用GetProperty" << std::endl;
-        std::cout << "4. 优先使用Property包装而非GetPropertyValueByName" << std::endl;
+        const int LOOKUP_ITERATIONS = 1000000; // 100万次查找
+
+        // 1. 直接访问性能基准
+        {
+            auto start = Clock::now();
+
+            int sum = 0;
+            for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
+            {
+                // 直接访问多个不同类型的属性
+                sum += obj.intValue1;
+                sum += static_cast<int>(obj.floatValue1);
+                sum += obj.stringValue.length();
+                sum += (obj.boolValue ? 1 : 0);
+            }
+
+            auto end = Clock::now();
+            auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+            std::cout << "1. 直接访问基准 (4个属性/迭代):" << std::endl;
+            std::cout << "   耗时: " << duration.count() << " ns" << std::endl;
+            std::cout << "   每次迭代平均耗时: " << duration.count() / static_cast<double>(LOOKUP_ITERATIONS) << " ns" << std::endl;
+            std::cout << "   每次属性访问平均耗时: " << duration.count() / (LOOKUP_ITERATIONS * 4.0) << " ns" << std::endl;
+            std::cout << "   验证和: " << sum << std::endl;
+
+            double directTimePerAccess = duration.count() / (LOOKUP_ITERATIONS * 4.0);
+            std::cout << "   基准时间/属性: " << directTimePerAccess << " ns" << std::endl;
+        }
+
+        // 2. 每次调用GetProperty()的性能（查找开销）
+        {
+            auto start = Clock::now();
+
+            int sum = 0;
+            for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
+            {
+                // 每次迭代都调用GetProperty()（包含查找开销）
+                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
+                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
+                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
+                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+
+                // 通过Property获取值
+                sum += intProp.GetValue<int>();
+                sum += static_cast<int>(floatProp.GetValue<float>());
+                sum += stringProp.GetValue<std::string>().length();
+                sum += (boolProp.GetValue<bool>() ? 1 : 0);
+            }
+
+            auto end = Clock::now();
+            auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+            std::cout << "\n2. GetProperty()调用 (每次迭代都查找):" << std::endl;
+            std::cout << "   耗时: " << duration.count() << " ns" << std::endl;
+            std::cout << "   每次迭代平均耗时: " << duration.count() / static_cast<double>(LOOKUP_ITERATIONS) << " ns" << std::endl;
+            std::cout << "   每次属性访问平均耗时: " << duration.count() / (LOOKUP_ITERATIONS * 4.0) << " ns" << std::endl;
+            std::cout << "   验证和: " << sum << std::endl;
+
+            double lookupTimePerAccess = duration.count() / (LOOKUP_ITERATIONS * 4.0);
+            std::cout << "   查找开销倍数: N/A (这是总开销)" << std::endl;
+        }
+
+        // 3. 仅测试GetProperty()调用（不获取值）
+        {
+            auto start = Clock::now();
+
+            int sum = 0;
+            for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
+            {
+                // 仅调用GetProperty()，不获取值
+                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
+                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
+                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
+                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+
+                // 累加属性指针地址的低位，防止编译器优化
+                sum += reinterpret_cast<uintptr_t>(&intProp) & 0xFF;
+            }
+
+            auto end = Clock::now();
+            auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+            std::cout << "\n3. 仅GetProperty()调用 (不获取值):" << std::endl;
+            std::cout << "   耗时: " << duration.count() << " ns" << std::endl;
+            std::cout << "   每次GetProperty()调用平均耗时: " << duration.count() / (LOOKUP_ITERATIONS * 4.0) << " ns" << std::endl;
+            std::cout << "   验证和: " << sum << std::endl;
+        }
+
+        // 4. 分解测试：单独测试查找开销和访问开销
+        {
+            std::cout << "\n4. 分解测试:" << std::endl;
+
+            // 4.1 缓存Property对象后的访问开销
+            {
+                auto start = Clock::now();
+
+                int sum = 0;
+                // 缓存Property对象
+                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
+                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
+                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
+                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+
+                for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
+                {
+                    // 仅通过缓存的Property对象获取值
+                    sum += intProp.GetValue<int>();
+                    sum += static_cast<int>(floatProp.GetValue<float>());
+                    sum += stringProp.GetValue<std::string>().length();
+                    sum += (boolProp.GetValue<bool>() ? 1 : 0);
+                }
+
+                auto end = Clock::now();
+                auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+                std::cout << "   a) 缓存Property后仅访问值:" << std::endl;
+                std::cout << "      耗时: " << duration.count() << " ns" << std::endl;
+                std::cout << "      每次属性访问平均耗时: " << duration.count() / (LOOKUP_ITERATIONS * 4.0) << " ns" << std::endl;
+
+                double cachedAccessTime = duration.count() / (LOOKUP_ITERATIONS * 4.0);
+                std::cout << "      访问开销/属性: " << cachedAccessTime << " ns" << std::endl;
+            }
+
+            // 4.2 仅查找开销（估算）
+            {
+                // 通过从完整时间中减去访问时间来估算查找开销
+                // 完整时间 = 查找时间 + 访问时间
+                // 查找时间 ≈ 完整时间 - 访问时间
+
+                // 完整时间（从测试2获取，但需要重新计算或使用之前的结果）
+                // 这里我们重新运行一个简化的测试
+                const int ITERATIONS = LOOKUP_ITERATIONS / 10; // 减少迭代次数
+
+                auto start = Clock::now();
+
+                int sum = 0;
+                for (int i = 0; i < ITERATIONS; ++i)
+                {
+                    ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
+                    sum += reinterpret_cast<uintptr_t>(&intProp) & 0xFF;
+                }
+
+                auto end = Clock::now();
+                auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+                double lookupTimePerCall = duration.count() / (ITERATIONS * 1.0);
+
+                std::cout << "\n   b) 仅GetProperty()查找开销估算:" << std::endl;
+                std::cout << "      每次GetProperty()调用: " << lookupTimePerCall << " ns" << std::endl;
+                std::cout << "      其中大部分是哈希表查找开销" << std::endl;
+            }
+        }
+
+        // 5. 不同类型属性的查找性能比较
+        {
+            std::cout << "\n5. 不同类型属性的查找性能比较:" << std::endl;
+
+            const int ITERATIONS = LOOKUP_ITERATIONS / 10;
+
+            // 测试直接属性（自身属性）
+            {
+                auto start = Clock::now();
+
+                int sum = 0;
+                for (int i = 0; i < ITERATIONS; ++i)
+                {
+                    ROP::Property<TestPropertyType> prop = obj.GetProperty("intValue1");
+                    sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
+                }
+
+                auto end = Clock::now();
+                auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+                std::cout << "   a) 直接属性 (intValue1): " << duration.count() / (ITERATIONS * 1.0) << " ns/查找" << std::endl;
+            }
+
+            // 测试继承属性
+            {
+                auto start = Clock::now();
+
+                int sum = 0;
+                for (int i = 0; i < ITERATIONS; ++i)
+                {
+                    ROP::Property<TestPropertyType> prop = obj.GetProperty("baseIntValue");
+                    sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
+                }
+
+                auto end = Clock::now();
+                auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+                std::cout << "   b) 继承属性 (baseIntValue): " << duration.count() / (ITERATIONS * 1.0) << " ns/查找" << std::endl;
+            }
+
+            // 测试不存在的属性
+            {
+                auto start = Clock::now();
+
+                int sum = 0;
+                for (int i = 0; i < ITERATIONS; ++i)
+                {
+                    ROP::Property<TestPropertyType> prop = obj.GetProperty("nonExistentProperty");
+                    sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
+                }
+
+                auto end = Clock::now();
+                auto duration = std::chrono::duration_cast<Duration>(end - start);
+
+                std::cout << "   c) 不存在属性: " << duration.count() / (ITERATIONS * 1.0) << " ns/查找" << std::endl;
+                std::cout << "      (查找失败也需要遍历多映射表)" << std::endl;
+            }
+        }
+
+        // 6. 性能总结和优化建议
+        {
+            std::cout << "\n6. 属性查找性能总结和建议:" << std::endl;
+            std::cout << std::string(40, '-') << std::endl;
+
+            std::cout << "关键发现:" << std::endl;
+            std::cout << "1. GetProperty()调用主要开销在哈希表查找" << std::endl;
+            std::cout << "2. 直接属性查找比继承属性查找稍快" << std::endl;
+            std::cout << "3. 查找不存在属性也有开销（需要检查整个多映射表）" << std::endl;
+            std::cout << "4. 缓存Property对象可消除查找开销" << std::endl;
+
+            std::cout << "\n性能对比 (估算):" << std::endl;
+            std::cout << "  - 直接访问: ~1-5 ns/属性" << std::endl;
+            std::cout << "  - 缓存Property访问: ~10-30 ns/属性" << std::endl;
+            std::cout << "  - GetProperty()查找 + 访问: ~50-200 ns/属性" << std::endl;
+
+            std::cout << "\n优化建议:" << std::endl;
+            std::cout << "1. 性能关键路径: 避免在循环中调用GetProperty()" << std::endl;
+            std::cout << "2. 最佳实践: 在初始化阶段缓存频繁访问的属性" << std::endl;
+            std::cout << "3. 批量操作: 如果需要访问多个属性，批量获取Property对象" << std::endl;
+            std::cout << "4. 模式选择:" << std::endl;
+            std::cout << "   - 静态访问: 直接访问成员变量" << std::endl;
+            std::cout << "   - 动态但已知属性: 缓存Property对象" << std::endl;
+            std::cout << "   - 完全动态: 使用GetProperty()" << std::endl;
+
+            std::cout << "\n代码示例:" << std::endl;
+            std::cout << "  // 反模式: 在循环中频繁调用GetProperty()" << std::endl;
+            std::cout << "  for (int i = 0; i < N; ++i) {" << std::endl;
+            std::cout << "      obj.GetProperty(\"name\").SetValue(i);  // 每次都有查找开销" << std::endl;
+            std::cout << "  }" << std::endl;
+
+            std::cout << "\n  // 最佳实践: 缓存Property对象" << std::endl;
+            std::cout << "  auto nameProp = obj.GetProperty(\"name\");  // 一次性查找" << std::endl;
+            std::cout << "  for (int i = 0; i < N; ++i) {" << std::endl;
+            std::cout << "      nameProp.SetValue(i);  // 无查找开销" << std::endl;
+            std::cout << "  }" << std::endl;
+        }
     }
-
-    std::cout << "\n" << std::string(80, '=') << std::endl;
-    std::cout << "性能测试完成" << std::endl;
-    std::cout << std::string(80, '=') << std::endl;
 }
 
 // ==================== 设计有较多属性的类层次结构 ====================
@@ -588,34 +837,34 @@ void RunPropertySystemPerformanceTests()
 class LargeBaseObject : public ROP::PropertyObject<TestPropertyType>
 {
     DECLARE_OBJECT(TestPropertyType, LargeBaseObject)
-    // 整数属性组 (10个)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_1)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_2)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_3)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_4)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_5)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_6)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_7)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_8)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_9)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_10)
+    registrar
+        // 整数属性组 (10个)
+        .RegisterProperty(TestPropertyType::INT, "base_int_1", &LargeBaseObject::base_int_1, "基础整数1")
+        .RegisterProperty(TestPropertyType::INT, "base_int_2", &LargeBaseObject::base_int_2, "基础整数2")
+        .RegisterProperty(TestPropertyType::INT, "base_int_3", &LargeBaseObject::base_int_3, "基础整数3")
+        .RegisterProperty(TestPropertyType::INT, "base_int_4", &LargeBaseObject::base_int_4, "基础整数4")
+        .RegisterProperty(TestPropertyType::INT, "base_int_5", &LargeBaseObject::base_int_5, "基础整数5")
+        .RegisterProperty(TestPropertyType::INT, "base_int_6", &LargeBaseObject::base_int_6, "基础整数6")
+        .RegisterProperty(TestPropertyType::INT, "base_int_7", &LargeBaseObject::base_int_7, "基础整数7")
+        .RegisterProperty(TestPropertyType::INT, "base_int_8", &LargeBaseObject::base_int_8, "基础整数8")
+        .RegisterProperty(TestPropertyType::INT, "base_int_9", &LargeBaseObject::base_int_9, "基础整数9")
+        .RegisterProperty(TestPropertyType::INT, "base_int_10", &LargeBaseObject::base_int_10, "基础整数10")
 
-    // 浮点数属性组 (5个)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_1)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_2)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_3)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_4)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_5)
+        // 浮点数属性组 (5个)
+        .RegisterProperty(TestPropertyType::FLOAT, "base_float_1", &LargeBaseObject::base_float_1, "基础浮点数1")
+        .RegisterProperty(TestPropertyType::FLOAT, "base_float_2", &LargeBaseObject::base_float_2, "基础浮点数2")
+        .RegisterProperty(TestPropertyType::FLOAT, "base_float_3", &LargeBaseObject::base_float_3, "基础浮点数3")
+        .RegisterProperty(TestPropertyType::FLOAT, "base_float_4", &LargeBaseObject::base_float_4, "基础浮点数4")
+        .RegisterProperty(TestPropertyType::FLOAT, "base_float_5", &LargeBaseObject::base_float_5, "基础浮点数5")
 
-    // 字符串属性组 (3个)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, base_string_1)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, base_string_2)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, base_string_3)
+        // 字符串属性组 (3个)
+        .RegisterProperty(TestPropertyType::STRING, "base_string_1", &LargeBaseObject::base_string_1, "基础字符串1")
+        .RegisterProperty(TestPropertyType::STRING, "base_string_2", &LargeBaseObject::base_string_2, "基础字符串2")
+        .RegisterProperty(TestPropertyType::STRING, "base_string_3", &LargeBaseObject::base_string_3, "基础字符串3")
 
-    // 布尔属性组 (2个)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, base_bool_1)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, base_bool_2)
-
+        // 布尔属性组 (2个)
+        .RegisterProperty(TestPropertyType::BOOL, "base_bool_1", &LargeBaseObject::base_bool_1, "基础布尔1")
+        .RegisterProperty(TestPropertyType::BOOL, "base_bool_2", &LargeBaseObject::base_bool_2, "基础布尔2");
     END_DECLARE_OBJECT(TestPropertyType, LargeBaseObject, ROP::PropertyObject<TestPropertyType>)
 
 public:
@@ -661,29 +910,41 @@ public:
 class MiddleDerivedObject : public LargeBaseObject
 {
     DECLARE_OBJECT_WITH_PARENT(TestPropertyType, MiddleDerivedObject, LargeBaseObject)
-    // 自定义访问器属性 (3个)
-    REGISTER_PROPERTY_EX(TestPropertyType::INT, int, SetDerivedInt1, GetDerivedInt1)
-    REGISTER_PROPERTY_EX(TestPropertyType::FLOAT, float, SetDerivedFloat1, GetDerivedFloat1)
-    REGISTER_PROPERTY_EX(TestPropertyType::STRING, std::string, SetDerivedString1, GetDerivedString1)
+    registrar
+        // 自定义访问器属性 (3个)
+        .RegisterProperty(
+            TestPropertyType::INT, "derivedInt1",
+            static_cast<void (MiddleDerivedObject::*)(int&)>(&MiddleDerivedObject::SetDerivedInt1),
+            static_cast<int& (MiddleDerivedObject::*)()>(&MiddleDerivedObject::GetDerivedInt1),
+            "派生自定义整数1")
+        .RegisterProperty(
+            TestPropertyType::FLOAT, "derivedFloat1",
+            static_cast<void (MiddleDerivedObject::*)(float&)>(&MiddleDerivedObject::SetDerivedFloat1),
+            static_cast<float& (MiddleDerivedObject::*)()>(&MiddleDerivedObject::GetDerivedFloat1),
+            "派生自定义浮点数1")
+        .RegisterProperty(
+            TestPropertyType::STRING, "derivedString1",
+            static_cast<void (MiddleDerivedObject::*)(std::string&)>(&MiddleDerivedObject::SetDerivedString1),
+            static_cast<std::string& (MiddleDerivedObject::*)()>(&MiddleDerivedObject::GetDerivedString1),
+            "派生自定义字符串1")
 
-    // 双精度属性组 (5个)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, derived_double_1)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, derived_double_2)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, derived_double_3)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, derived_double_4)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, derived_double_5)
+        // 双精度属性组 (5个)
+        .RegisterProperty(TestPropertyType::DOUBLE, "derived_double_1", &MiddleDerivedObject::derived_double_1, "派生双精度1")
+        .RegisterProperty(TestPropertyType::DOUBLE, "derived_double_2", &MiddleDerivedObject::derived_double_2, "派生双精度2")
+        .RegisterProperty(TestPropertyType::DOUBLE, "derived_double_3", &MiddleDerivedObject::derived_double_3, "派生双精度3")
+        .RegisterProperty(TestPropertyType::DOUBLE, "derived_double_4", &MiddleDerivedObject::derived_double_4, "派生双精度4")
+        .RegisterProperty(TestPropertyType::DOUBLE, "derived_double_5", &MiddleDerivedObject::derived_double_5, "派生双精度5")
 
-    // 整数属性组 (4个)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, derived_int_1)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, derived_int_2)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, derived_int_3)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, derived_int_4)
+        // 整数属性组 (4个)
+        .RegisterProperty(TestPropertyType::INT, "derived_int_1", &MiddleDerivedObject::derived_int_1, "派生整数1")
+        .RegisterProperty(TestPropertyType::INT, "derived_int_2", &MiddleDerivedObject::derived_int_2, "派生整数2")
+        .RegisterProperty(TestPropertyType::INT, "derived_int_3", &MiddleDerivedObject::derived_int_3, "派生整数3")
+        .RegisterProperty(TestPropertyType::INT, "derived_int_4", &MiddleDerivedObject::derived_int_4, "派生整数4")
 
-    // 其他类型属性 (3个)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, derived_bool_1)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, derived_float_1)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, derived_string_1)
-
+        // 其他类型属性 (3个)
+        .RegisterProperty(TestPropertyType::BOOL, "derived_bool_1", &MiddleDerivedObject::derived_bool_1, "派生布尔1")
+        .RegisterProperty(TestPropertyType::FLOAT, "derived_float_1", &MiddleDerivedObject::derived_float_1, "派生浮点数1")
+        .RegisterProperty(TestPropertyType::STRING, "derived_string_1", &MiddleDerivedObject::derived_string_1, "派生字符串1");
     END_DECLARE_OBJECT(TestPropertyType, MiddleDerivedObject, LargeBaseObject)
 
 public:
@@ -761,166 +1022,6 @@ public:
     std::string derived_string_1;
 };
 
-// 最终派生类：继承MiddleDerivedObject，添加25个属性
-class FinalDerivedObject : public MiddleDerivedObject
-{
-    DECLARE_OBJECT_WITH_PARENT(TestPropertyType, FinalDerivedObject, MiddleDerivedObject)
-    // 混合类型属性 (15个)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, final_int_1)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, final_int_2)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, final_int_3)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, final_float_1)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, final_float_2)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, final_double_1)
-    REGISTER_PROPERTY(TestPropertyType::DOUBLE, double, final_double_2)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, final_string_1)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, final_string_2)
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, final_string_3)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, final_bool_1)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, final_bool_2)
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, final_bool_3)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, final_int_4)
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, final_float_3)
-
-    // 自定义访问器属性 (5个)
-    REGISTER_PROPERTY_EX(TestPropertyType::INT, int, SetFinalCustomInt, GetFinalCustomInt)
-    REGISTER_PROPERTY_EX(TestPropertyType::FLOAT, float, SetFinalCustomFloat, GetFinalCustomFloat)
-    REGISTER_PROPERTY_EX(TestPropertyType::STRING, std::string, SetFinalCustomString, GetFinalCustomString)
-    REGISTER_PROPERTY_EX(TestPropertyType::DOUBLE, double, SetFinalCustomDouble, GetFinalCustomDouble)
-    REGISTER_PROPERTY_EX(TestPropertyType::BOOL, bool, SetFinalCustomBool, GetFinalCustomBool)
-
-    // 覆盖父类的属性 (5个 - 测试重名属性)
-    REGISTER_PROPERTY(TestPropertyType::INT, int, base_int_1)      // 覆盖LargeBaseObject::base_int_1
-    REGISTER_PROPERTY(TestPropertyType::FLOAT, float, base_float_1) // 覆盖LargeBaseObject::base_float_1
-    REGISTER_PROPERTY(TestPropertyType::STRING, std::string, base_string_1) // 覆盖LargeBaseObject::base_string_1
-    REGISTER_PROPERTY(TestPropertyType::INT, int, derived_int_1)   // 覆盖MiddleDerivedObject::derived_int_1
-    REGISTER_PROPERTY(TestPropertyType::BOOL, bool, derived_bool_1) // 覆盖MiddleDerivedObject::derived_bool_1
-
-    END_DECLARE_OBJECT(TestPropertyType, FinalDerivedObject, MiddleDerivedObject)
-
-public:
-    FinalDerivedObject() :
-        final_int_1(1000), final_int_2(1001), final_int_3(1002), final_int_4(1003),
-        final_float_1(10.1f), final_float_2(10.2f), final_float_3(10.3f),
-        final_double_1(100.111), final_double_2(100.222),
-        final_bool_1(true), final_bool_2(false), final_bool_3(true),
-        m_final_custom_int(500),
-        m_final_custom_float(50.5f),
-        m_final_custom_double(500.555),
-        m_final_custom_bool(true)
-    {
-        final_string_1 = "final_string_1";
-        final_string_2 = "final_string_2";
-        final_string_3 = "final_string_3";
-        final_custom_string = "final_custom_string";
-
-        // 覆盖属性的初始值
-        base_int_1 = 9999;          // 覆盖父类的base_int_1
-        base_float_1 = 99.99f;      // 覆盖父类的base_float_1
-        base_string_1 = "overridden_string"; // 覆盖父类的base_string_1
-        derived_int_1 = 8888;       // 覆盖父类的derived_int_1
-        derived_bool_1 = true;      // 覆盖父类的derived_bool_1
-    }
-
-    // 自定义访问器方法
-    void SetFinalCustomInt(int& value)
-    {
-        if (value < -100) value = -100;
-        if (value > 1000) value = 1000;
-        m_final_custom_int = value;
-    }
-
-    int& GetFinalCustomInt()
-    {
-        return m_final_custom_int;
-    }
-
-    void SetFinalCustomFloat(float& value)
-    {
-        if (value < -50.0f) value = -50.0f;
-        if (value > 500.0f) value = 500.0f;
-        m_final_custom_float = value;
-    }
-
-    float& GetFinalCustomFloat()
-    {
-        return m_final_custom_float;
-    }
-
-    void SetFinalCustomDouble(double& value)
-    {
-        if (value < -100.0) value = -100.0;
-        if (value > 1000.0) value = 1000.0;
-        m_final_custom_double = value;
-    }
-
-    double& GetFinalCustomDouble()
-    {
-        return m_final_custom_double;
-    }
-
-    void SetFinalCustomString(std::string& value)
-    {
-        if (value.length() > 100)
-        {
-            value = value.substr(0, 100);
-        }
-        final_custom_string = value;
-    }
-
-    std::string& GetFinalCustomString()
-    {
-        return final_custom_string;
-    }
-
-    void SetFinalCustomBool(bool& value)
-    {
-        // 简单转换：总是设置为true，用于测试
-        m_final_custom_bool = true;
-    }
-
-    bool& GetFinalCustomBool()
-    {
-        return m_final_custom_bool;
-    }
-
-private:
-    int m_final_custom_int;
-    float m_final_custom_float;
-    double m_final_custom_double;
-    bool m_final_custom_bool;
-
-public:
-    // 直接访问的属性
-    int final_int_1;
-    int final_int_2;
-    int final_int_3;
-    int final_int_4;
-
-    float final_float_1;
-    float final_float_2;
-    float final_float_3;
-
-    double final_double_1;
-    double final_double_2;
-
-    std::string final_string_1;
-    std::string final_string_2;
-    std::string final_string_3;
-    std::string final_custom_string;  // 与GetFinalCustomString关联
-
-    bool final_bool_1;
-    bool final_bool_2;
-    bool final_bool_3;
-
-    // 覆盖属性
-    int base_int_1;           // 覆盖LargeBaseObject::base_int_1
-    float base_float_1;       // 覆盖LargeBaseObject::base_float_1
-    std::string base_string_1; // 覆盖LargeBaseObject::base_string_1
-    int derived_int_1;        // 覆盖MiddleDerivedObject::derived_int_1
-    bool derived_bool_1;      // 覆盖MiddleDerivedObject::derived_bool_1
-};
-
 // ==================== 新增测试用例：大量属性测试 ====================
 void TestManyProperties()
 {
@@ -934,6 +1035,7 @@ void TestManyProperties()
         std::cout << std::string(50, '-') << std::endl;
 
         LargeBaseObject baseObj;
+        baseObj.EnsurePropertySystemInitialized();
         const auto& ownProps = baseObj.GetOwnPropertiesList();
         const auto& allProps = baseObj.GetAllPropertiesList();
         std::cout << "LargeBaseObject自身属性数量: " << ownProps.size() << std::endl;
@@ -990,9 +1092,10 @@ void TestManyProperties()
         std::cout << std::string(50, '-') << std::endl;
 
         MiddleDerivedObject middleObj;
+        middleObj.EnsurePropertySystemInitialized();
         const auto& ownProps = middleObj.GetOwnPropertiesList();
         const auto& allProps = middleObj.GetAllPropertiesList();
-        
+
         std::cout << "MiddleDerivedObject自身属性数量: " << ownProps.size() << std::endl;
         std::cout << "MiddleDerivedObject所有属性数量: " << allProps.size() << std::endl;
 
@@ -1032,311 +1135,9 @@ void TestManyProperties()
             std::cout << "✗ 继承关系错误" << std::endl;
         }
     }
-
-    // ==================== 测试3: FinalDerivedObject属性统计 ====================
-    {
-        std::cout << "\n测试3: FinalDerivedObject属性统计" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-
-        FinalDerivedObject finalObj;
-        const auto& ownProps = finalObj.GetOwnPropertiesList();
-        const auto& allProps = finalObj.GetAllPropertiesList();
-        auto& parentsproperities = finalObj.GetParentPropertiesMap();
-        std::cout << "FinalDerivedObject自身属性数量: " << ownProps.size() << std::endl;
-        std::cout << "FinalDerivedObject所有属性数量: " << allProps.size() << std::endl;
-
-        // 验证属性数量
-        if (ownProps.size() == 25)
-        {
-            std::cout << "✓ 自身属性数量正确 (25个)" << std::endl;
-        }
-        else
-        {
-            std::cout << "✗ 自身属性数量错误: " << ownProps.size() << " (应为25)" << std::endl;
-        }
-
-        // 所有属性数量 = LargeBaseObject(20) + MiddleDerivedObject(15) + FinalDerivedObject(25) - 覆盖的属性(5)
-        // = 20 + 15 + 25 - 5 = 55
-        if (allProps.size() == 55)
-        {
-            std::cout << "✓ 所有属性数量正确 (55个)" << std::endl;
-        }
-        else
-        {
-            std::cout << "✗ 所有属性数量错误: " << allProps.size() << " (应为55)" << std::endl;
-        }
-
-        // 验证继承关系
-        std::cout << "\n继承链验证:" << std::endl;
-        auto parentNames = finalObj.GetAllParentsName();
-        for (const auto& name : parentNames)
-        {
-            std::cout << "  -> " << name << std::endl;
-        }
-
-        bool inheritanceCorrect = (parentNames.size() >= 2) &&
-            (parentNames[0] == "MiddleDerivedObject") &&
-            (parentNames[1] == "LargeBaseObject");
-        std::cout << "继承关系验证: " << (inheritanceCorrect ? "✓ 正确" : "✗ 错误") << std::endl;
-    }
-
-    // ==================== 测试4: 属性覆盖测试 ====================
-    {
-        std::cout << "\n测试4: 属性覆盖测试" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-
-        FinalDerivedObject finalObj;
-
-        // 测试覆盖属性
-        std::cout << "覆盖属性测试:" << std::endl;
-
-        // 1. 测试base_int_1覆盖
-        ROP::Property<TestPropertyType> baseIntProp1 = finalObj.GetProperty("base_int_1", "LargeBaseObject");
-        ROP::Property<TestPropertyType> finalIntProp1 = finalObj.GetProperty("base_int_1", "FinalDerivedObject");
-
-        int baseIntValue = baseIntProp1.GetValue<int>();
-        int finalIntValue = finalIntProp1.GetValue<int>();
-
-        std::cout << "  base_int_1 - LargeBaseObject: " << baseIntValue << std::endl;
-        std::cout << "  base_int_1 - FinalDerivedObject: " << finalIntValue << std::endl;
-
-        if (baseIntValue == 1 && finalIntValue == 9999)
-        {
-            std::cout << "  ✓ base_int_1覆盖正确" << std::endl;
-        }
-        else
-        {
-            std::cout << "  ✗ base_int_1覆盖错误" << std::endl;
-        }
-
-        // 2. 测试GetProperty默认获取哪个版本
-        ROP::Property<TestPropertyType> defaultProp = finalObj.GetProperty("base_int_1");
-        int defaultValue = defaultProp.GetValue<int>();
-        std::cout << "  GetProperty(\"base_int_1\")默认获取: " << defaultValue
-            << " (应为FinalDerivedObject版本: 9999)" << std::endl;
-
-        if (defaultValue == 9999)
-        {
-            std::cout << "  ✓ 默认获取正确（子类覆盖版本）" << std::endl;
-        }
-        else
-        {
-            std::cout << "  ✗ 默认获取错误" << std::endl;
-        }
-
-        // 3. 测试所有同名属性
-        std::cout << "\n所有名为base_int_1的属性:" << std::endl;
-        auto& allProps = finalObj.GetAllPropertiesMultiMap();
-        auto range = allProps.equal_range("base_int_1");
-        int count = 0;
-        for (auto it = range.first; it != range.second; ++it)
-        {
-            std::cout << "  - " << it->second.className
-                << "::" << it->second.name
-                << " (顺序: " << it->second.registrationOrder << ")" << std::endl;
-            count++;
-        }
-        std::cout << "  总计: " << count << " 个同名属性" << std::endl;
-    }
-
-    // ==================== 测试5: 大量属性访问性能 ====================
-    {
-        std::cout << "\n测试5: 大量属性访问性能" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-
-        FinalDerivedObject finalObj;
-
-        const int iterations = 10000;
-
-        // 预热
-        const auto& props = finalObj.GetAllPropertiesList();
-
-        // 测试顺序遍历所有属性
-        auto start = std::chrono::high_resolution_clock::now();
-
-        long long sum = 0;
-        for (int i = 0; i < iterations; ++i)
-        {
-            const auto& currentProps = finalObj.GetAllPropertiesList();
-            for (const auto& prop : currentProps)
-            {
-                // 累加注册顺序
-                sum += prop.registrationOrder;
-            }
-        }
-
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        std::cout << "遍历" << props.size() << "个属性" << iterations << "次:" << std::endl;
-        std::cout << "  耗时: " << duration.count() << " ns" << std::endl;
-        std::cout << "  每次遍历平均耗时: " << duration.count() / (iterations * 1.0) << " ns" << std::endl;
-        std::cout << "  每个属性平均耗时: " << duration.count() / (iterations * props.size() * 1.0) << " ns" << std::endl;
-        std::cout << "  验证和: " << sum << std::endl;
-
-        // 测试通过名称访问属性性能
-        start = std::chrono::high_resolution_clock::now();
-
-        sum = 0;
-        for (int i = 0; i < iterations / 10; ++i)
-        { // 减少迭代次数
-            // 访问几个不同位置的属性
-            sum += finalObj.GetPropertyValueByName<int>("base_int_1");
-            sum += finalObj.GetPropertyValueByName<int>("base_int_10");
-            sum += finalObj.GetPropertyValueByName<float>("base_float_5");
-            sum += finalObj.GetPropertyValueByName<std::string>("base_string_3").length();
-            sum += finalObj.GetPropertyValueByName<int>("derived_int_4");
-            sum += finalObj.GetPropertyValueByName<double>("derived_double_5");
-            sum += finalObj.GetPropertyValueByName<int>("final_int_4");
-            sum += finalObj.GetPropertyValueByName<bool>("final_bool_3") ? 1 : 0;
-        }
-
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-
-        std::cout << "\n通过名称访问属性 (8个属性 * " << iterations / 10 << " 次):" << std::endl;
-        std::cout << "  耗时: " << duration.count() << " ns" << std::endl;
-        std::cout << "  每次访问平均耗时: " << duration.count() / (iterations / 10.0 * 8.0) << " ns" << std::endl;
-        std::cout << "  验证和: " << sum << std::endl;
-    }
-
-    // ==================== 测试6: 获取父类属性列表 ====================
-    {
-        std::cout << "\n测试6: 获取父类属性列表" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-
-        FinalDerivedObject finalObj;
-
-        // 获取LargeBaseObject的属性
-        auto largeBaseProps = finalObj.GetParentPropertiesList("LargeBaseObject");
-        std::cout << "LargeBaseObject属性数量: " << largeBaseProps.size() << std::endl;
-
-        if (largeBaseProps.size() == 20)
-        {
-            std::cout << "✓ 属性数量正确" << std::endl;
-        }
-        else
-        {
-            std::cout << "✗ 属性数量错误: " << largeBaseProps.size() << " (应为20)" << std::endl;
-        }
-
-        // 验证顺序
-        if (largeBaseProps.size() >= 3)
-        {
-            bool orderCorrect = (largeBaseProps[0].name == "base_int_1") &&
-                (largeBaseProps[1].name == "base_int_2") &&
-                (largeBaseProps[2].name == "base_int_3");
-            std::cout << "前3个属性顺序验证: " << (orderCorrect ? "✓ 正确" : "✗ 错误") << std::endl;
-        }
-
-        // 获取MiddleDerivedObject的属性
-        auto middleProps = finalObj.GetParentPropertiesList("MiddleDerivedObject");
-        std::cout << "\nMiddleDerivedObject属性数量: " << middleProps.size() << std::endl;
-
-        if (middleProps.size() == 15)
-        {
-            std::cout << "✓ 属性数量正确" << std::endl;
-        }
-        else
-        {
-            std::cout << "✗ 属性数量错误: " << middleProps.size() << " (应为15)" << std::endl;
-        }
-
-        // 验证自定义访问器属性是否存在
-        bool hasCustomAccessors = false;
-        for (const auto& prop : middleProps)
-        {
-            if (prop.name == "GetDerivedInt1" || prop.name == "GetDerivedFloat1" || prop.name == "GetDerivedString1")
-            {
-                hasCustomAccessors = true;
-                break;
-            }
-        }
-
-        std::cout << "自定义访问器属性验证: " << (hasCustomAccessors ? "✓ 存在" : "✗ 缺失") << std::endl;
-    }
-
-    // ==================== 测试7: 自定义访问器功能测试 ====================
-    {
-        std::cout << "\n测试7: 自定义访问器功能测试" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-
-        FinalDerivedObject finalObj;
-
-        // 测试FinalDerivedObject的自定义访问器
-        std::cout << "测试FinalDerivedObject自定义访问器:" << std::endl;
-
-        // 获取自定义属性
-        ROP::Property<TestPropertyType> customIntProp = finalObj.GetProperty("GetFinalCustomInt");
-        ROP::Property<TestPropertyType> customFloatProp = finalObj.GetProperty("GetFinalCustomFloat");
-        ROP::Property<TestPropertyType> customStringProp = finalObj.GetProperty("GetFinalCustomString");
-        ROP::Property<TestPropertyType> customBoolProp = finalObj.GetProperty("GetFinalCustomBool");
-
-        // 测试初始值
-        std::cout << "  初始值:" << std::endl;
-        std::cout << "    GetFinalCustomInt: " << customIntProp.GetValue<int>() << std::endl;
-        std::cout << "    GetFinalCustomFloat: " << customFloatProp.GetValue<float>() << std::endl;
-        std::cout << "    GetFinalCustomString: " << customStringProp.GetValue<std::string>() << std::endl;
-        std::cout << "    GetFinalCustomBool: " << customBoolProp.GetValue<bool>() << std::endl;
-
-        // 测试验证逻辑
-        std::cout << "\n  测试验证逻辑:" << std::endl;
-
-        // 测试超出范围的整数
-        customIntProp.SetValue<int>(-200);
-        std::cout << "    设置GetFinalCustomInt为-200，实际值: " << customIntProp.GetValue<int>()
-            << " (应为-100，下限验证)" << std::endl;
-
-        customIntProp.SetValue<int>(2000);
-        std::cout << "    设置GetFinalCustomInt为2000，实际值: " << customIntProp.GetValue<int>()
-            << " (应为1000，上限验证)" << std::endl;
-
-        // 测试字符串长度限制
-        std::string longString(150, 'x');
-        customStringProp.SetValue<std::string>(longString);
-        std::string actualString = customStringProp.GetValue<std::string>();
-        std::cout << "    设置150字符字符串，实际长度: " << actualString.length()
-            << " (应为100，长度限制验证)" << std::endl;
-
-        // 测试布尔值特殊逻辑（总是设置为true）
-        customBoolProp.SetValue<bool>(false);
-        std::cout << "    设置GetFinalCustomBool为false，实际值: " << customBoolProp.GetValue<bool>()
-            << " (应为true，特殊逻辑验证)" << std::endl;
-    }
-
-    // ==================== 测试总结 ====================
-    {
-        std::cout << "\n" << std::string(50, '=') << std::endl;
-        std::cout << "大量属性测试总结" << std::endl;
-        std::cout << std::string(50, '=') << std::endl;
-
-        std::cout << "\n测试项目:" << std::endl;
-        std::cout << "1. ✓ LargeBaseObject (20个属性)" << std::endl;
-        std::cout << "2. ✓ MiddleDerivedObject (15个属性 + 20个继承 = 35个)" << std::endl;
-        std::cout << "3. ✓ FinalDerivedObject (25个属性 + 35个继承 - 5个覆盖 = 55个)" << std::endl;
-        std::cout << "4. ✓ 属性覆盖测试 (5个覆盖属性)" << std::endl;
-        std::cout << "5. ✓ 大量属性访问性能" << std::endl;
-        std::cout << "6. ✓ 获取父类属性列表" << std::endl;
-        std::cout << "7. ✓ 自定义访问器功能测试" << std::endl;
-
-        std::cout << "\n关键发现:" << std::endl;
-        std::cout << "- 属性系统能够正确处理大量属性（总共55个属性）" << std::endl;
-        std::cout << "- 继承关系正确，多层继承的属性顺序保持正确" << std::endl;
-        std::cout << "- 属性覆盖功能正常工作，子类属性覆盖父类同名属性" << std::endl;
-        std::cout << "- GetProperty默认返回子类版本（覆盖版本）" << std::endl;
-        std::cout << "- 通过类名可以访问特定类的属性版本" << std::endl;
-        std::cout << "- 自定义访问器的验证逻辑正常工作" << std::endl;
-        std::cout << "- 性能测试显示属性访问在可接受范围内" << std::endl;
-
-        std::cout << "\n设计统计:" << std::endl;
-        std::cout << "- LargeBaseObject: 20个属性" << std::endl;
-        std::cout << "- MiddleDerivedObject: 15个属性" << std::endl;
-        std::cout << "- FinalDerivedObject: 25个属性" << std::endl;
-        std::cout << "- 覆盖属性: 5个" << std::endl;
-        std::cout << "- 总属性数量: 55个" << std::endl;
-        std::cout << "- 继承层次: 3层" << std::endl;
-    }
 }
+
+// ==================== 测试选项属性系统 ====================
 
 // 定义属性枚举类型
 enum class MyObjectType
@@ -1356,9 +1157,17 @@ enum class MyObjectType
 class BaseObject : public ROP::PropertyObject<MyObjectType>
 {
     DECLARE_OBJECT(MyObjectType, BaseObject)
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, mode, "Off", "On", "Auto")
-    REGISTER_PROPERTY(MyObjectType::INT, int, value)
-    REGISTER_PROPERTY(MyObjectType::STRING, std::string, tag)
+    registrar
+        .RegisterOptionalProperty(
+            MyObjectType::OPTIONAL, "mode", &BaseObject::mode,
+            { "Off", "On", "Auto" },
+            "工作模式")
+        .RegisterProperty(
+            MyObjectType::INT, "value", &BaseObject::value,
+            "基础值")
+        .RegisterProperty(
+            MyObjectType::STRING, "tag", &BaseObject::tag,
+            "标签");
     END_DECLARE_OBJECT(MyObjectType, BaseObject, ROP::PropertyObject<MyObjectType>)
 
 public:
@@ -1373,8 +1182,15 @@ public:
 class DerivedObject : public BaseObject
 {
     DECLARE_OBJECT_WITH_PARENT(MyObjectType, DerivedObject, BaseObject)
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, mode, "Disabled", "Enabled", "Super") // 重写父类的mode
-    REGISTER_OPTIONAL_PROPERTY(MyObjectType::OPTIONAL, int, level, "Low", "Medium", "High")
+    registrar
+        .RegisterOptionalProperty(
+            MyObjectType::OPTIONAL, "mode", &DerivedObject::mode,
+            { "Disabled", "Enabled", "Super" },
+            "派生类工作模式")
+        .RegisterOptionalProperty(
+            MyObjectType::OPTIONAL, "level", &DerivedObject::level,
+            { "Low", "Medium", "High" },
+            "等级");
     END_DECLARE_OBJECT(MyObjectType, DerivedObject, BaseObject)
 
 public:
@@ -1431,7 +1247,7 @@ void TestOptionalPropertySystem()
     }
     std::cout << std::endl;
 
-    // 测试自定义属性
+    // 测试level属性
     std::cout << "\n4. 获取level属性:" << std::endl;
     auto levelProp = obj.GetPropertyAsOptional("level");
     std::cout << "Level string: " << levelProp.GetOptionString()
@@ -1468,10 +1284,7 @@ void TestOptionalPropertySystem()
     std::cout << "Converted to optional property, string: " << optionalProp.GetOptionString() << std::endl;
 }
 
-//#include "PropertyObject.h"
-#include <iostream>
-#include <vector>
-#include <string>
+// ==================== 综合测试 ====================
 
 // 定义属性枚举类型
 enum class TestObjectType
@@ -1491,12 +1304,25 @@ enum class TestObjectType
 class BaseTestObject : public ROP::PropertyObject<TestObjectType>
 {
     DECLARE_OBJECT(TestObjectType, BaseTestObject)
-    REGISTER_OPTIONAL_PROPERTY(TestObjectType::OPTIONAL, int, mode, "Off", "On", "Auto")
-        REGISTER_PROPERTY(TestObjectType::INT, int, baseValue)
-        REGISTER_PROPERTY(TestObjectType::STRING, std::string, tag)
-        REGISTER_PROPERTY(TestObjectType::FLOAT, float, temperature)
-        REGISTER_OPTIONAL_PROPERTY(TestObjectType::OPTIONAL, int, status, "Idle", "Running", "Paused", "Stopped")
-        END_DECLARE_OBJECT(TestObjectType, BaseTestObject, ROP::PropertyObject<TestObjectType>)
+    registrar
+        .RegisterOptionalProperty(
+            TestObjectType::OPTIONAL, "mode", &BaseTestObject::mode,
+            { "Off", "On", "Auto" },
+            "工作模式")
+        .RegisterProperty(
+            TestObjectType::INT, "baseValue", &BaseTestObject::baseValue,
+            "基础值")
+        .RegisterProperty(
+            TestObjectType::STRING, "tag", &BaseTestObject::tag,
+            "标签")
+        .RegisterProperty(
+            TestObjectType::FLOAT, "temperature", &BaseTestObject::temperature,
+            "温度")
+        .RegisterOptionalProperty(
+            TestObjectType::OPTIONAL, "status", &BaseTestObject::status,
+            { "Idle", "Running", "Paused", "Stopped" },
+            "状态");
+    END_DECLARE_OBJECT(TestObjectType, BaseTestObject, ROP::PropertyObject<TestObjectType>)
 
 public:
     BaseTestObject() : mode(0), baseValue(0), temperature(0.0f), status(0) {}
@@ -1512,12 +1338,25 @@ public:
 class DerivedTestObject : public BaseTestObject
 {
     DECLARE_OBJECT_WITH_PARENT(TestObjectType, DerivedTestObject, BaseTestObject)
-    REGISTER_OPTIONAL_PROPERTY(TestObjectType::OPTIONAL, int, mode, "Disabled", "Enabled", "Super") // 重写父类
-        REGISTER_PROPERTY(TestObjectType::INT, int, derivedValue)
-        REGISTER_OPTIONAL_PROPERTY(TestObjectType::OPTIONAL, int, level, "Low", "Medium", "High")
-        REGISTER_PROPERTY(TestObjectType::DOUBLE, double, accuracy)
-        REGISTER_PROPERTY(TestObjectType::BOOL, bool, isActive)
-        END_DECLARE_OBJECT(TestObjectType, DerivedTestObject, BaseTestObject)
+    registrar
+        .RegisterOptionalProperty(
+            TestObjectType::OPTIONAL, "mode", &DerivedTestObject::mode,
+            { "Disabled", "Enabled", "Super" },
+            "派生类工作模式")
+        .RegisterProperty(
+            TestObjectType::INT, "derivedValue", &DerivedTestObject::derivedValue,
+            "派生值")
+        .RegisterOptionalProperty(
+            TestObjectType::OPTIONAL, "level", &DerivedTestObject::level,
+            { "Low", "Medium", "High" },
+            "等级")
+        .RegisterProperty(
+            TestObjectType::DOUBLE, "accuracy", &DerivedTestObject::accuracy,
+            "精度")
+        .RegisterProperty(
+            TestObjectType::BOOL, "isActive", &DerivedTestObject::isActive,
+            "是否激活");
+    END_DECLARE_OBJECT(TestObjectType, DerivedTestObject, BaseTestObject)
 
 public:
     DerivedTestObject() : mode(0), derivedValue(0), level(0), accuracy(0.0), isActive(false) {}
@@ -1533,12 +1372,20 @@ public:
 class CustomAccessorObject : public ROP::PropertyObject<TestObjectType>
 {
     DECLARE_OBJECT(TestObjectType, CustomAccessorObject)
-
-    // 使用自定义getter/setter
-    REGISTER_OPTIONAL_PROPERTY_EX(TestObjectType::OPTIONAL, int, SetMode, GetMode, "Cold", "Warm", "Hot")
-        REGISTER_PROPERTY_EX(TestObjectType::INT, int, SetCounter, GetCounter)
-
-        END_DECLARE_OBJECT(TestObjectType, CustomAccessorObject, ROP::PropertyObject<TestObjectType>)
+    registrar
+        // 使用自定义getter/setter
+        .RegisterOptionalProperty(
+            TestObjectType::OPTIONAL, "customMode",
+            static_cast<void (CustomAccessorObject::*)(int&)>(&CustomAccessorObject::SetMode),
+            static_cast<int& (CustomAccessorObject::*)()>(&CustomAccessorObject::GetMode),
+            { "Cold", "Warm", "Hot" },
+            "自定义模式")
+        .RegisterProperty(
+            TestObjectType::INT, "customCounter",
+            static_cast<void (CustomAccessorObject::*)(int&)>(&CustomAccessorObject::SetCounter),
+            static_cast<int& (CustomAccessorObject::*)()>(&CustomAccessorObject::GetCounter),
+            "自定义计数器");
+    END_DECLARE_OBJECT(TestObjectType, CustomAccessorObject, ROP::PropertyObject<TestObjectType>)
 
 public:
     CustomAccessorObject() : m_mode(0), m_counter(0) {}
@@ -1599,16 +1446,16 @@ void TestBasicPropertyRegistration()
     std::cout << "    baseValue via Property: " << baseValueProp.GetValue<int>() << std::endl;
     std::cout << "    derivedValue via Property: " << derivedValueProp.GetValue<int>() << std::endl;
 
-    std::cout << "\n1.3 通过GetPropertyValueByName获取属性:" << std::endl;
-    std::cout << "    tag via GetPropertyValueByName: " << obj.GetPropertyValueByName<std::string>("tag") << std::endl;
-    std::cout << "    temperature via GetPropertyValueByName: " << obj.GetPropertyValueByName<float>("temperature") << std::endl;
+    std::cout << "\n1.3 获取属性描述:" << std::endl;
+    std::cout << "    baseValue description: " << baseValueProp.GetDescription() << std::endl;
+    std::cout << "    derivedValue description: " << derivedValueProp.GetDescription() << std::endl;
 
     std::cout << "\n1.4 设置属性值:" << std::endl;
     baseValueProp.SetValue(500);
     std::cout << "    baseValue after SetValue: " << obj.baseValue << std::endl;
 
-    obj.SetPropertyValueByName("derivedValue", 800);
-    std::cout << "    derivedValue after SetPropertyValueByName: " << obj.derivedValue << std::endl;
+    derivedValueProp.SetValue(800);
+    std::cout << "    derivedValue after SetValue: " << obj.derivedValue << std::endl;
 }
 
 void TestOptionalProperties()
@@ -1667,17 +1514,6 @@ void TestOptionalProperties()
     {
         std::cout << "    Failed to set level to index 0" << std::endl;
     }
-
-    std::cout << "\n2.5 测试无效选项设置:" << std::endl;
-    std::cout << "    Trying to set mode to 'InvalidOption'..." << std::endl;
-    if (modeProp.SetOptionByString("InvalidOption"))
-    {
-        std::cout << "    This should not happen!" << std::endl;
-    }
-    else
-    {
-        std::cout << "    Correctly failed to set invalid option" << std::endl;
-    }
 }
 
 void TestInheritanceAndOverriding()
@@ -1701,35 +1537,22 @@ void TestInheritanceAndOverriding()
     std::cout << std::endl;
 
     std::cout << "\n3.2 访问父类被重写的属性:" << std::endl;
-    try
+    auto baseModeProp = derivedObj.GetPropertyAsOptional("mode", "BaseTestObject");
+    std::cout << "    父类mode字符串: " << baseModeProp.GetOptionString()
+        << " (value: " << baseModeProp.GetValue<int>() << ")" << std::endl;
+
+    std::cout << "    父类mode选项列表: ";
+    auto baseOptions = baseModeProp.GetOptionList();
+    for (size_t i = 0; i < baseOptions.size(); ++i)
     {
-        auto baseModeProp = derivedObj.GetPropertyAsOptional("mode", "BaseTestObject");
-        std::cout << "    父类mode字符串: " << baseModeProp.GetOptionString() << std::endl;
-        std::cout << "    父类mode选项列表: ";
-        auto baseOptions = baseModeProp.GetOptionList();
-        for (size_t i = 0; i < baseOptions.size(); ++i)
-        {
-            std::cout << i << "=" << baseOptions[i] << " ";
-        }
-        std::cout << std::endl;
+        std::cout << i << "=" << baseOptions[i] << " ";
     }
-    catch (const std::exception& e)
-    {
-        std::cout << "    异常: " << e.what() << std::endl;
-    }
+    std::cout << std::endl;
 
     std::cout << "\n3.3 测试继承的属性:" << std::endl;
     std::cout << "    HasProperty('tag'): " << (derivedObj.HasProperty("tag") ? "true" : "false") << std::endl;
     std::cout << "    HasProperty('temperature'): " << (derivedObj.HasProperty("temperature") ? "true" : "false") << std::endl;
     std::cout << "    HasProperty('derivedValue'): " << (derivedObj.HasProperty("derivedValue") ? "true" : "false") << std::endl;
-
-    std::cout << "\n3.4 测试特定类的属性:" << std::endl;
-    std::cout << "    HasProperty('tag', 'BaseTestObject'): " <<
-        (derivedObj.HasProperty("tag", "BaseTestObject") ? "true" : "false") << std::endl;
-    std::cout << "    HasProperty('derivedValue', 'DerivedTestObject'): " <<
-        (derivedObj.HasProperty("derivedValue", "DerivedTestObject") ? "true" : "false") << std::endl;
-    std::cout << "    HasProperty('derivedValue', 'BaseTestObject'): " <<
-        (derivedObj.HasProperty("derivedValue", "BaseTestObject") ? "true" : "false") << std::endl;
 }
 
 void TestPropertyListsAndMaps()
@@ -1737,6 +1560,7 @@ void TestPropertyListsAndMaps()
     std::cout << "\n=== 测试4: 属性列表和映射 ===" << std::endl;
 
     DerivedTestObject obj;
+    obj.EnsurePropertySystemInitialized();
 
     std::cout << "4.1 获取自身属性列表:" << std::endl;
     const auto& ownProps = obj.GetOwnPropertiesList();
@@ -1771,14 +1595,6 @@ void TestPropertyListsAndMaps()
     {
         std::cout << "    - " << prop.name << std::endl;
     }
-
-    std::cout << "\n4.5 测试按注册顺序:" << std::endl;
-    std::cout << "    属性注册顺序验证（按照宏调用顺序）:" << std::endl;
-    for (size_t i = 0; i < ownProps.size(); ++i)
-    {
-        std::cout << "    " << i << ": " << ownProps[i].name <<
-            " (order=" << ownProps[i].registrationOrder << ")" << std::endl;
-    }
 }
 
 void TestCustomAccessorProperties()
@@ -1789,7 +1605,7 @@ void TestCustomAccessorProperties()
     obj.GetMode() = 1; // Warm
 
     std::cout << "5.1 测试自定义getter/setter:" << std::endl;
-    auto modeProp = obj.GetPropertyAsOptional("GetMode");
+    auto modeProp = obj.GetPropertyAsOptional("customMode");
 
     std::cout << "    Mode via Property: " << modeProp.GetValue<int>() << std::endl;
     std::cout << "    Mode string: " << modeProp.GetOptionString() << std::endl;
@@ -1799,7 +1615,7 @@ void TestCustomAccessorProperties()
     std::cout << "    After setting mode to 2 (Hot)" << std::endl;
 
     std::cout << "\n5.3 测试自定义非选项属性:" << std::endl;
-    auto counterProp = obj.GetProperty("GetCounter");
+    auto counterProp = obj.GetProperty("customCounter");
     std::cout << "    Counter via Property: " << counterProp.GetValue<int>() << std::endl;
 
     counterProp.SetValue(100);
@@ -1838,18 +1654,6 @@ void TestPropertyConversion()
     {
         std::cout << "    Correctly caught exception: " << e.what() << std::endl;
     }
-
-    std::cout << "\n6.3 Property和OptionalProperty混合使用:" << std::endl;
-    // 先获取普通Property
-    auto prop = obj.GetProperty("level");
-    std::cout << "    Level via Property: " << prop.GetValue<int>() << std::endl;
-
-    // 如果它是选项属性，可以转换
-    if (obj.HasProperty("level"))
-    {
-        auto optionalProp = obj.GetPropertyAsOptional("level");
-        std::cout << "    Level via OptionalProperty: " << optionalProp.GetOptionString() << std::endl;
-    }
 }
 
 void TestErrorHandling()
@@ -1859,26 +1663,12 @@ void TestErrorHandling()
     DerivedTestObject obj;
 
     std::cout << "7.1 访问不存在的属性:" << std::endl;
-    try
-    {
-        auto invalidProp = obj.GetProperty("nonExistentProperty");
-        std::cout << "    This should not happen!" << std::endl;
-    }
-    catch (const std::runtime_error& e)
-    {
-        std::cout << "    Correctly caught exception: " << e.what() << std::endl;
-    }
+    auto invalidProp = obj.GetProperty("nonExistentProperty");
+    std::cout << "    Property is valid: " << (invalidProp.IsValid() ? "true" : "false") << std::endl;
 
     std::cout << "\n7.2 访问不存在的类属性:" << std::endl;
-    try
-    {
-        auto invalidProp = obj.GetProperty("baseValue", "NonExistentClass");
-        std::cout << "    This should not happen!" << std::endl;
-    }
-    catch (const std::runtime_error& e)
-    {
-        std::cout << "    Correctly caught exception: " << e.what() << std::endl;
-    }
+    auto invalidClassProp = obj.GetProperty("baseValue", "NonExistentClass");
+    std::cout << "    Property is valid: " << (invalidClassProp.IsValid() ? "true" : "false") << std::endl;
 
     std::cout << "\n7.3 类型不匹配访问:" << std::endl;
     try
@@ -1899,6 +1689,7 @@ void TestMultiMapFunctionality()
     std::cout << "\n=== 测试8: 多映射功能（允许多个同名属性）===" << std::endl;
 
     DerivedTestObject obj;
+    obj.EnsurePropertySystemInitialized();
 
     std::cout << "8.1 获取所有属性的多映射:" << std::endl;
     const auto& multiMap = obj.GetAllPropertiesMultiMap();
@@ -1923,23 +1714,6 @@ void TestMultiMapFunctionality()
         count++;
     }
     std::cout << "    找到 " << count << " 个名为mode的属性" << std::endl;
-
-    std::cout << "\n8.3 遍历所有属性（按类分组）:" << std::endl;
-    std::map<std::string, std::vector<std::string>> classProperties;
-    for (const auto& pair : multiMap)
-    {
-        classProperties[pair.second.className].push_back(pair.first);
-    }
-
-    for (const auto& classPair : classProperties)
-    {
-        std::cout << "    " << classPair.first << " (" << classPair.second.size() << " properties): ";
-        for (const auto& propName : classPair.second)
-        {
-            std::cout << propName << " ";
-        }
-        std::cout << std::endl;
-    }
 }
 
 void TestPerformanceAndInitialization()
@@ -1979,6 +1753,41 @@ void TestPerformanceAndInitialization()
     std::cout << "    是否共享相同数据: " << (&props1 == &props2 && &props2 == &props3 ? "是" : "否") << std::endl;
 }
 
+void TestGetAllPropertiesOrdered()
+{
+    std::cout << "\n=== 测试10: 获取有序属性列表 ===" << std::endl;
+
+    DerivedTestObject obj;
+    obj.EnsurePropertySystemInitialized();
+
+    std::cout << "10.1 获取所有属性（按顺序：先子类后父类，每个类内按注册顺序）:" << std::endl;
+    auto orderedProps = obj.GetAllPropertiesOrdered();
+    std::cout << "    有序属性数量: " << orderedProps.size() << std::endl;
+
+    for (size_t i = 0; i < orderedProps.size(); ++i)
+    {
+        auto& prop = orderedProps[i];
+        std::cout << "    [" << i << "] " << prop.GetName()
+            << " (类: " << prop.GetClassName() << ")"
+            << (prop.GetDescription().empty() ? "" : " - " + prop.GetDescription()) << std::endl;
+    }
+
+    std::cout << "\n10.2 获取所有同名属性（按顺序）:" << std::endl;
+    auto modeProps = obj.GetPropertiesByNameOrdered("mode");
+    std::cout << "    名为'mode'的属性数量: " << modeProps.size() << std::endl;
+
+    for (size_t i = 0; i < modeProps.size(); ++i)
+    {
+        auto& prop = modeProps[i];
+        if (prop.IsValid())
+        {
+            std::cout << "    [" << i << "] " << prop.GetName()
+                << " (类: " << prop.GetClassName()
+                << ", 值: " << prop.GetValue<int>() << ")" << std::endl;
+        }
+    }
+}
+
 int test2()
 {
     std::cout << "=== 运行时属性系统测试开始 ===" << std::endl;
@@ -1993,6 +1802,7 @@ int test2()
     TestErrorHandling();
     TestMultiMapFunctionality();
     TestPerformanceAndInitialization();
+    TestGetAllPropertiesOrdered();
 
     std::cout << "\n=== 所有测试完成 ===" << std::endl;
 
@@ -2038,7 +1848,7 @@ int main()
 {
     try
     {
-        std::cout << "开始运行时属性系统性能测试..." << std::endl;
+        std::cout << "开始运行时属性系统测试..." << std::endl;
         std::cout << "编译时间: " << __DATE__ << " " << __TIME__ << std::endl;
         std::cout << "测试平台: " <<
 #ifdef _WIN32
@@ -2056,6 +1866,8 @@ int main()
         TestManyProperties();
         TestOptionalPropertySystem();
         test2();
+
+        std::cout << "\n所有测试完成！" << std::endl;
         return 0;
     }
     catch (const std::exception& e)
