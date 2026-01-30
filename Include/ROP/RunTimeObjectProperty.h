@@ -1235,15 +1235,24 @@ namespace ROP
 
 // 主宏：声明并定义所有必要函数
 #define DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ParentClassName) \
-public: \
-    using EnumClass = EnumType; \
-    using PropertyDataType = ROP::PropertyData<EnumType>; \
-    \
+public:\
+    virtual std::string GetClassName() const override { \
+        return #ClassName; \
+    } \
+    virtual const ROP::PropertyData<EnumClass>& GetPropertyData() const override { \
+        EnsurePropertySystemInitialized(); \
+        return GetPropertyDataStatic(); \
+    } \
     /* 获取属性数据结构体（静态版本） */ \
     static PropertyDataType& GetPropertyDataStatic() { \
         static PropertyDataType s_propertyData; \
         return s_propertyData; \
     } \
+protected: \
+    using EnumClass = EnumType; \
+    using PropertyDataType = ROP::PropertyData<EnumType>; \
+    using ClassType = ClassName;\
+    using ParentClassType = ParentClassName;\
     \
     /* 静态初始化函数 */ \
     static bool StaticInitializeProperties() { \
@@ -1257,26 +1266,18 @@ public: \
 #define DECLARE_OBJECT(EnumType, ClassName) DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ROP::PropertyObject<EnumType>)
 
 // 结束宏
-#define END_DECLARE_OBJECT(EnumType, ClassName, ParentClassName) \
+#define END_DECLARE_OBJECT() \
             /* 完成属性系统初始化 */ \
-            FINALIZE_PROPERTY_SYSTEM(EnumType, ClassName) \
+            FINALIZE_PROPERTY_SYSTEM(EnumClass, ClassType) \
         }(); \
         return s_initialized; \
     } \
     \
     /* 确保属性系统已初始化 */ \
     void EnsurePropertySystemInitialized() const { \
-        static_cast<const ClassName*>(this)->StaticInitializeProperties(); \
+        static_cast<const ClassType*>(this)->StaticInitializeProperties(); \
     } \
     \
-    virtual std::string GetClassName() const override { \
-        return #ClassName; \
-    } \
-    \
-    virtual const ROP::PropertyData<EnumType>& GetPropertyData() const override { \
-        EnsurePropertySystemInitialized(); \
-        return GetPropertyDataStatic(); \
-    } \
 private:
 
 

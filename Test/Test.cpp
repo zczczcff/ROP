@@ -1035,7 +1035,6 @@ void TestManyProperties()
         std::cout << std::string(50, '-') << std::endl;
 
         LargeBaseObject baseObj;
-        baseObj.EnsurePropertySystemInitialized();
         const auto& ownProps = baseObj.GetOwnPropertiesList();
         const auto& allProps = baseObj.GetAllPropertiesList();
         std::cout << "LargeBaseObject自身属性数量: " << ownProps.size() << std::endl;
@@ -1092,7 +1091,6 @@ void TestManyProperties()
         std::cout << std::string(50, '-') << std::endl;
 
         MiddleDerivedObject middleObj;
-        middleObj.EnsurePropertySystemInitialized();
         const auto& ownProps = middleObj.GetOwnPropertiesList();
         const auto& allProps = middleObj.GetAllPropertiesList();
 
@@ -1560,7 +1558,6 @@ void TestPropertyListsAndMaps()
     std::cout << "\n=== 测试4: 属性列表和映射 ===" << std::endl;
 
     DerivedTestObject obj;
-    obj.EnsurePropertySystemInitialized();
 
     std::cout << "4.1 获取自身属性列表:" << std::endl;
     const auto& ownProps = obj.GetOwnPropertiesList();
@@ -1689,7 +1686,6 @@ void TestMultiMapFunctionality()
     std::cout << "\n=== 测试8: 多映射功能（允许多个同名属性）===" << std::endl;
 
     DerivedTestObject obj;
-    obj.EnsurePropertySystemInitialized();
 
     std::cout << "8.1 获取所有属性的多映射:" << std::endl;
     const auto& multiMap = obj.GetAllPropertiesMultiMap();
@@ -1758,7 +1754,6 @@ void TestGetAllPropertiesOrdered()
     std::cout << "\n=== 测试10: 获取有序属性列表 ===" << std::endl;
 
     DerivedTestObject obj;
-    obj.EnsurePropertySystemInitialized();
 
     std::cout << "10.1 获取所有属性（按顺序：先子类后父类，每个类内按注册顺序）:" << std::endl;
     auto orderedProps = obj.GetAllPropertiesOrdered();
