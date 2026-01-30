@@ -76,6 +76,47 @@ namespace ROP
             m_objPtr->template SetPropertyValue<T>(m_metaPtr, value);
         }
 
+        template<typename T>
+        T* GetPointer()
+        {
+            if (!IsValid())
+                return nullptr;
+
+            void* ptr = meta->getter(const_cast<PropertyObject<EnumType>*>(m_objPtr));
+            return static_cast<T*>(ptr);
+        }
+
+        // 获取属性值的引用
+        template<typename T>
+        T& GetReference()
+        {
+            T* ptr = GetPointer<T>();
+            if (!ptr)
+                throw std::runtime_error("Failed to get property reference");
+            return *ptr;
+        }
+
+        // 获取属性值的常量引用
+        template<typename T>
+        const T& GetConstReference() const
+        {
+            const T* ptr = GetConstPointer<T>();
+            if (!ptr)
+                throw std::runtime_error("Failed to get property const reference");
+            return *ptr;
+        }
+
+        template<typename T>
+        const T* GetConstPointer() const
+        {
+            if (!IsValid())
+                return nullptr;
+
+            void* ptr = meta->getter(const_cast<PropertyObject<EnumType>*>(m_objPtr));
+            return static_cast<const T*>(ptr);
+        }
+
+
         // 获取属性元数据指针
         const void* GetMetaPtr() const
         {
