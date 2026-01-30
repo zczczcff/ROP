@@ -81,7 +81,7 @@ namespace ROP
         {
             if (!IsValid())
                 return nullptr;
-
+            const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(m_metaPtr);
             void* ptr = meta->getter(const_cast<PropertyObject<EnumType>*>(m_objPtr));
             return static_cast<T*>(ptr);
         }
@@ -111,7 +111,7 @@ namespace ROP
         {
             if (!IsValid())
                 return nullptr;
-
+            const PropertyMeta<EnumType>* meta = static_cast<const PropertyMeta<EnumType>*>(m_metaPtr);
             void* ptr = meta->getter(const_cast<PropertyObject<EnumType>*>(m_objPtr));
             return static_cast<const T*>(ptr);
         }
