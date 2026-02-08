@@ -1252,13 +1252,12 @@ namespace ROP
                 propertyData, #ParentClassName); \
         } \
         \
-        using ParentClass = ParentClassName; \
         std::string ParentClassNameString = #ParentClassName;
 
 // 辅助宏：完成属性系统初始化（合并后的版本）
 #define FINALIZE_PROPERTY_SYSTEM(ClassName) \
         /* 构建父类名称列表 */ \
-        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllParentsNameList<ParentClass>( \
+        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllParentsNameList<ParentClassType>( \
             propertyData, ParentClassNameString); \
         \
         /* 构建父类属性列表映射 */ \
