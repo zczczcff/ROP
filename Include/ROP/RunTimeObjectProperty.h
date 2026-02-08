@@ -679,8 +679,8 @@ namespace ROP
     {
         friend class Property<EnumType>;
     public:
-        using EnumClass = EnumType;
-        using PropertyDataType = PropertyData<EnumType>;
+        using ROPEnumClass = EnumType;
+        using ROPPropertyDataType = PropertyData<EnumType>;
 
         virtual ~PropertyObject() = default;
 
@@ -1280,18 +1280,16 @@ public:\
     virtual std::string GetClassName() const override { \
         return #ClassName; \
     } \
-    virtual const ROP::PropertyData<EnumClass>& GetPropertyData() const override { \
+    virtual const ROP::PropertyData<ROPEnumClass>& GetPropertyData() const override { \
         EnsurePropertySystemInitialized(); \
         return GetPropertyDataStatic(); \
     } \
     /* 获取属性数据结构体（静态版本） */ \
-    static PropertyDataType& GetPropertyDataStatic() { \
-        static PropertyDataType s_propertyData; \
+    static ROPPropertyDataType& GetPropertyDataStatic() { \
+        static ROPPropertyDataType s_propertyData; \
         return s_propertyData; \
     } \
 protected: \
-    using EnumClass = EnumType; \
-    using PropertyDataType = ROP::PropertyData<EnumType>; \
     using ClassType = ClassName;\
     using ParentClassType = ParentClassName;\
     \
@@ -1301,7 +1299,7 @@ protected: \
             INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName) \
             \
             /* 创建注册器对象 */ \
-            ROP::PropertyRegistrar<EnumClass, ClassName> registrar(propertyData, classnamestring); 
+            ROP::PropertyRegistrar<ROPEnumClass, ClassName> registrar(propertyData, classnamestring); 
 
 // 简化宏：用于没有父类的情况
 #define DECLARE_OBJECT(EnumType, ClassName) DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ROP::PropertyObject<EnumType>)
@@ -1309,7 +1307,7 @@ protected: \
 // 结束宏
 #define END_DECLARE_OBJECT() \
             /* 完成属性系统初始化 */ \
-            FINALIZE_PROPERTY_SYSTEM(EnumClass, ClassType) \
+            FINALIZE_PROPERTY_SYSTEM(ROPEnumClass, ClassType) \
         }(); \
         return s_initialized; \
     } \
