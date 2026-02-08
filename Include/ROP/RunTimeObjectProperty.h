@@ -1337,7 +1337,7 @@ private:
 //// 设备基类
 //class Device : public ROP::PropertyObject<DeviceProperty>
 //{
-//    DECLARE_OBJECT(DeviceProperty, Device)
+//    DECLARE_OBJECT(Device)
 //    registrar
 //        .RegisterProperty(DeviceProperty::ID, "deviceId", &Device::deviceId, "设备ID")
 //        .RegisterProperty(DeviceProperty::NAME, "deviceName", &Device::deviceName, "设备名称")
@@ -1345,7 +1345,7 @@ private:
 //            DeviceProperty::OPTIONAL, "status", &Device::status,
 //            { "Offline", "Online", "Error", "Maintenance" },
 //            "设备状态");
-//    END_DECLARE_OBJECT(DeviceProperty, Device, ROP::PropertyObject<DeviceProperty>)
+//    END_DECLARE_OBJECT()
 //
 //public:
 //    Device() : deviceId(0), status(0) {}
@@ -1358,7 +1358,7 @@ private:
 //// 温度传感器类
 //class TemperatureSensor : public Device
 //{
-//    DECLARE_OBJECT_WITH_PARENT(DeviceProperty, TemperatureSensor, Device)
+//    DECLARE_OBJECT_WITH_PARENT(TemperatureSensor, Device)
 //    registrar
 //        .RegisterProperty(
 //            DeviceProperty::TEMPERATURE, "currentTemp", &TemperatureSensor::currentTemp,
@@ -1370,7 +1370,7 @@ private:
 //            DeviceProperty::OPTIONAL, "unit", &TemperatureSensor::unit,
 //            { "Celsius", "Fahrenheit", "Kelvin" },
 //            "温度单位");
-//    END_DECLARE_OBJECT(DeviceProperty, TemperatureSensor, Device)
+//    END_DECLARE_OBJECT()
 //
 //public:
 //    TemperatureSensor() : currentTemp(20.0f), targetTemp(22.0f), unit(0) {}
