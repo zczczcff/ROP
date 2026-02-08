@@ -1237,7 +1237,7 @@ namespace ROP
 // ==================== 新的流式注册宏定义 ====================
 
 // 辅助宏：初始化属性系统
-#define INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName) \
+#define INIT_PROPERTY_SYSTEM(ClassName, ParentClassName) \
     { \
         auto& propertyData = GetPropertyDataStatic(); \
         if (propertyData.initialized) return true; \
@@ -1246,9 +1246,9 @@ namespace ROP
         const std::string classnamestring = #ClassName; \
         \
         /* 首先注册父类的属性到父类映射表 */ \
-        if constexpr (!std::is_same_v<ParentClassName, ROP::PropertyObject<EnumType>>) { \
+        if constexpr (!std::is_same_v<ParentClassName, ROP::PropertyObject<ROPEnumClass>>) { \
             ParentClassName::StaticInitializeProperties(); \
-            ROP::PropertySystemUtils<EnumType>::RegisterParentProperties<ParentClassName>( \
+            ROP::PropertySystemUtils<ROPEnumClass>::RegisterParentProperties<ParentClassName>( \
                 propertyData, #ParentClassName); \
         } \
         \
@@ -1256,26 +1256,26 @@ namespace ROP
         std::string ParentClassNameString = #ParentClassName;
 
 // 辅助宏：完成属性系统初始化（合并后的版本）
-#define FINALIZE_PROPERTY_SYSTEM(EnumType, ClassName) \
+#define FINALIZE_PROPERTY_SYSTEM(ClassName) \
         /* 构建父类名称列表 */ \
-        ROP::PropertySystemUtils<EnumType>::BuildAllParentsNameList<ParentClass>( \
+        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllParentsNameList<ParentClass>( \
             propertyData, ParentClassNameString); \
         \
         /* 构建父类属性列表映射 */ \
-        ROP::PropertySystemUtils<EnumType>::BuildParentPropertiesListMap(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass>::BuildParentPropertiesListMap(propertyData); \
         \
         /* 使用合并函数初始化属性数据 */ \
-        ROP::PropertySystemUtils<EnumType>::InitializePropertyData(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass>::InitializePropertyData(propertyData); \
         \
         /* 构建所有属性列表（包括父类，允许同名） */ \
-        ROP::PropertySystemUtils<EnumType>::BuildAllPropertiesList(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllPropertiesList(propertyData); \
         \
         propertyData.initialized = true; \
         return true; \
     }
 
 // 主宏：声明并定义所有必要函数
-#define DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ParentClassName) \
+#define DECLARE_OBJECT_WITH_PARENT(ClassName, ParentClassName) \
 public:\
     virtual std::string GetClassName() const override { \
         return #ClassName; \
@@ -1296,13 +1296,13 @@ protected: \
     /* 静态初始化函数 */ \
     static bool StaticInitializeProperties() { \
         static bool s_initialized = []() -> bool { \
-            INIT_PROPERTY_SYSTEM(EnumType, ClassName, ParentClassName) \
+            INIT_PROPERTY_SYSTEM(ClassName, ParentClassName) \
             \
             /* 创建注册器对象 */ \
             ROP::PropertyRegistrar<ROPEnumClass, ClassName> registrar(propertyData, classnamestring); 
 
 // 简化宏：用于没有父类的情况
-#define DECLARE_OBJECT(EnumType, ClassName) DECLARE_OBJECT_WITH_PARENT(EnumType, ClassName, ROP::PropertyObject<EnumType>)
+#define DECLARE_OBJECT(ClassName) DECLARE_OBJECT_WITH_PARENT(ClassName, ROP::PropertyObject<ROPEnumClass>)
 
 // 结束宏
 #define END_DECLARE_OBJECT() \

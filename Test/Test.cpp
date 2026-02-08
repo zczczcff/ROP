@@ -24,7 +24,7 @@ enum class TestPropertyType
 // 测试基类
 class TestBaseObject : public ROP::PropertyObject<TestPropertyType>
 {
-    DECLARE_OBJECT(TestPropertyType, TestBaseObject)
+    DECLARE_OBJECT(TestBaseObject)
     registrar
         .RegisterProperty(
             TestPropertyType::INT, "baseIntValue", &TestBaseObject::baseIntValue,
@@ -35,7 +35,7 @@ class TestBaseObject : public ROP::PropertyObject<TestPropertyType>
         .RegisterProperty(
             TestPropertyType::STRING, "baseStringValue", &TestBaseObject::baseStringValue,
             "基类字符串属性");
-    END_DECLARE_OBJECT(TestPropertyType, TestBaseObject, ROP::PropertyObject<TestPropertyType>)
+    END_DECLARE_OBJECT()
 
 public:
     TestBaseObject() : baseIntValue(0), baseFloatValue(0.0f), baseStringValue("") {}
@@ -48,7 +48,7 @@ public:
 // 测试派生类
 class TestDerivedObject : public TestBaseObject
 {
-    DECLARE_OBJECT_WITH_PARENT(TestPropertyType, TestDerivedObject, TestBaseObject)
+    DECLARE_OBJECT_WITH_PARENT(TestDerivedObject, TestBaseObject)
     registrar
         .RegisterProperty(
             TestPropertyType::INT, "intValue1", &TestDerivedObject::intValue1,
@@ -99,7 +99,7 @@ public:
 // 测试带有自定义访问器的类
 class TestCustomAccessorObject : public ROP::PropertyObject<TestPropertyType>
 {
-    DECLARE_OBJECT(TestPropertyType, TestCustomAccessorObject)
+    DECLARE_OBJECT(TestCustomAccessorObject)
     registrar
         .RegisterProperty(
             TestPropertyType::INT, "customInt",
@@ -114,7 +114,7 @@ class TestCustomAccessorObject : public ROP::PropertyObject<TestPropertyType>
         .RegisterProperty(
             TestPropertyType::INT, "directIntValue", &TestCustomAccessorObject::directIntValue,
             "直接整数属性");
-    END_DECLARE_OBJECT(TestPropertyType, TestCustomAccessorObject, ROP::PropertyObject<TestPropertyType>)
+    END_DECLARE_OBJECT()
 
 public:
     TestCustomAccessorObject() :
@@ -836,7 +836,7 @@ void RunPropertySystemPerformanceTests()
 // 基类：包含20个属性
 class LargeBaseObject : public ROP::PropertyObject<TestPropertyType>
 {
-    DECLARE_OBJECT(TestPropertyType, LargeBaseObject)
+    DECLARE_OBJECT(LargeBaseObject)
     registrar
         // 整数属性组 (10个)
         .RegisterProperty(TestPropertyType::INT, "base_int_1", &LargeBaseObject::base_int_1, "基础整数1")
@@ -865,7 +865,7 @@ class LargeBaseObject : public ROP::PropertyObject<TestPropertyType>
         // 布尔属性组 (2个)
         .RegisterProperty(TestPropertyType::BOOL, "base_bool_1", &LargeBaseObject::base_bool_1, "基础布尔1")
         .RegisterProperty(TestPropertyType::BOOL, "base_bool_2", &LargeBaseObject::base_bool_2, "基础布尔2");
-    END_DECLARE_OBJECT(TestPropertyType, LargeBaseObject, ROP::PropertyObject<TestPropertyType>)
+    END_DECLARE_OBJECT()
 
 public:
     // 构造函数初始化所有属性
@@ -909,7 +909,7 @@ public:
 // 中间派生类：继承LargeBaseObject，添加15个属性
 class MiddleDerivedObject : public LargeBaseObject
 {
-    DECLARE_OBJECT_WITH_PARENT(TestPropertyType, MiddleDerivedObject, LargeBaseObject)
+    DECLARE_OBJECT_WITH_PARENT(MiddleDerivedObject, LargeBaseObject)
     registrar
         // 自定义访问器属性 (3个)
         .RegisterProperty(
@@ -945,7 +945,7 @@ class MiddleDerivedObject : public LargeBaseObject
         .RegisterProperty(TestPropertyType::BOOL, "derived_bool_1", &MiddleDerivedObject::derived_bool_1, "派生布尔1")
         .RegisterProperty(TestPropertyType::FLOAT, "derived_float_1", &MiddleDerivedObject::derived_float_1, "派生浮点数1")
         .RegisterProperty(TestPropertyType::STRING, "derived_string_1", &MiddleDerivedObject::derived_string_1, "派生字符串1");
-    END_DECLARE_OBJECT(TestPropertyType, MiddleDerivedObject, LargeBaseObject)
+    END_DECLARE_OBJECT()
 
 public:
     MiddleDerivedObject() :
@@ -1154,7 +1154,7 @@ enum class MyObjectType
 // 基类
 class BaseObject : public ROP::PropertyObject<MyObjectType>
 {
-    DECLARE_OBJECT(MyObjectType, BaseObject)
+    DECLARE_OBJECT(BaseObject)
     registrar
         .RegisterOptionalProperty(
             MyObjectType::OPTIONAL, "mode", &BaseObject::mode,
@@ -1166,7 +1166,7 @@ class BaseObject : public ROP::PropertyObject<MyObjectType>
         .RegisterProperty(
             MyObjectType::STRING, "tag", &BaseObject::tag,
             "标签");
-    END_DECLARE_OBJECT(MyObjectType, BaseObject, ROP::PropertyObject<MyObjectType>)
+    END_DECLARE_OBJECT()
 
 public:
     BaseObject() : mode(0), value(0) {}
@@ -1179,7 +1179,7 @@ public:
 // 派生类
 class DerivedObject : public BaseObject
 {
-    DECLARE_OBJECT_WITH_PARENT(MyObjectType, DerivedObject, BaseObject)
+    DECLARE_OBJECT_WITH_PARENT(DerivedObject, BaseObject)
     registrar
         .RegisterOptionalProperty(
             MyObjectType::OPTIONAL, "mode", &DerivedObject::mode,
@@ -1189,7 +1189,7 @@ class DerivedObject : public BaseObject
             MyObjectType::OPTIONAL, "level", &DerivedObject::level,
             { "Low", "Medium", "High" },
             "等级");
-    END_DECLARE_OBJECT(MyObjectType, DerivedObject, BaseObject)
+    END_DECLARE_OBJECT()
 
 public:
     DerivedObject() : mode(0), level(0) {}
@@ -1301,7 +1301,7 @@ enum class TestObjectType
 // ==================== 测试基类 ====================
 class BaseTestObject : public ROP::PropertyObject<TestObjectType>
 {
-    DECLARE_OBJECT(TestObjectType, BaseTestObject)
+    DECLARE_OBJECT(BaseTestObject)
     registrar
         .RegisterOptionalProperty(
             TestObjectType::OPTIONAL, "mode", &BaseTestObject::mode,
@@ -1320,7 +1320,7 @@ class BaseTestObject : public ROP::PropertyObject<TestObjectType>
             TestObjectType::OPTIONAL, "status", &BaseTestObject::status,
             { "Idle", "Running", "Paused", "Stopped" },
             "状态");
-    END_DECLARE_OBJECT(TestObjectType, BaseTestObject, ROP::PropertyObject<TestObjectType>)
+    END_DECLARE_OBJECT()
 
 public:
     BaseTestObject() : mode(0), baseValue(0), temperature(0.0f), status(0) {}
@@ -1335,7 +1335,7 @@ public:
 // ==================== 测试派生类 ====================
 class DerivedTestObject : public BaseTestObject
 {
-    DECLARE_OBJECT_WITH_PARENT(TestObjectType, DerivedTestObject, BaseTestObject)
+    DECLARE_OBJECT_WITH_PARENT(DerivedTestObject, BaseTestObject)
     registrar
         .RegisterOptionalProperty(
             TestObjectType::OPTIONAL, "mode", &DerivedTestObject::mode,
@@ -1354,7 +1354,7 @@ class DerivedTestObject : public BaseTestObject
         .RegisterProperty(
             TestObjectType::BOOL, "isActive", &DerivedTestObject::isActive,
             "是否激活");
-    END_DECLARE_OBJECT(TestObjectType, DerivedTestObject, BaseTestObject)
+    END_DECLARE_OBJECT()
 
 public:
     DerivedTestObject() : mode(0), derivedValue(0), level(0), accuracy(0.0), isActive(false) {}
@@ -1369,7 +1369,7 @@ public:
 // ==================== 测试自定义访问器类 ====================
 class CustomAccessorObject : public ROP::PropertyObject<TestObjectType>
 {
-    DECLARE_OBJECT(TestObjectType, CustomAccessorObject)
+    DECLARE_OBJECT(CustomAccessorObject)
     registrar
         // 使用自定义getter/setter
         .RegisterOptionalProperty(
@@ -1383,7 +1383,7 @@ class CustomAccessorObject : public ROP::PropertyObject<TestObjectType>
             static_cast<void (CustomAccessorObject::*)(int&)>(&CustomAccessorObject::SetCounter),
             static_cast<int& (CustomAccessorObject::*)()>(&CustomAccessorObject::GetCounter),
             "自定义计数器");
-    END_DECLARE_OBJECT(TestObjectType, CustomAccessorObject, ROP::PropertyObject<TestObjectType>)
+    END_DECLARE_OBJECT()
 
 public:
     CustomAccessorObject() : m_mode(0), m_counter(0) {}
