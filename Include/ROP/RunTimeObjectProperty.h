@@ -1255,9 +1255,9 @@ namespace ROP
         std::string ParentClassNameString = #ParentClassName;
 
 // 辅助宏：完成属性系统初始化（合并后的版本）
-#define FINALIZE_PROPERTY_SYSTEM(ClassName) \
+#define FINALIZE_PROPERTY_SYSTEM() \
         /* 构建父类名称列表 */ \
-        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllParentsNameList<ParentClassType>( \
+        ROP::PropertySystemUtils<ROPEnumClass>::BuildAllParentsNameList<ROPParentClassType>( \
             propertyData, ParentClassNameString); \
         \
         /* 构建父类属性列表映射 */ \
@@ -1289,8 +1289,8 @@ public:\
         return s_propertyData; \
     } \
 protected: \
-    using ClassType = ClassName;\
-    using ParentClassType = ParentClassName;\
+    using ROPClassType = ClassName;\
+    using ROPParentClassType = ParentClassName;\
     \
     /* 静态初始化函数 */ \
     static bool StaticInitializeProperties() { \
@@ -1306,14 +1306,14 @@ protected: \
 // 结束宏
 #define END_DECLARE_OBJECT() \
             /* 完成属性系统初始化 */ \
-            FINALIZE_PROPERTY_SYSTEM(ROPEnumClass, ClassType) \
+            FINALIZE_PROPERTY_SYSTEM() \
         }(); \
         return s_initialized; \
     } \
     \
     /* 确保属性系统已初始化 */ \
     void EnsurePropertySystemInitialized() const { \
-        static_cast<const ClassType*>(this)->StaticInitializeProperties(); \
+        static_cast<const ROPClassType*>(this)->StaticInitializeProperties(); \
     } \
     \
 private:
