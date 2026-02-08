@@ -25,6 +25,7 @@ enum class TestPropertyType
 class TestBaseObject : public ROP::PropertyObject<TestPropertyType>
 {
     DECLARE_OBJECT(TestBaseObject)
+
     registrar
         .RegisterProperty(
             TestPropertyType::INT, "baseIntValue", &TestBaseObject::baseIntValue,
@@ -230,9 +231,9 @@ void RunPropertySystemPerformanceTests()
             start = Clock::now();
 
             sum = 0;
-            ROP::Property<TestPropertyType> prop1 = obj.GetProperty("intValue1");
-            ROP::Property<TestPropertyType> prop2 = obj.GetProperty("intValue2");
-            ROP::Property<TestPropertyType> prop3 = obj.GetProperty("intValue3");
+            auto prop1 = obj.GetProperty("intValue1");
+            auto prop2 = obj.GetProperty("intValue2");
+            auto prop3 = obj.GetProperty("intValue3");
 
             for (int i = 0; i < TEST_ITERATIONS; ++i)
             {
@@ -324,11 +325,11 @@ void RunPropertySystemPerformanceTests()
         stringConcat.clear();
         boolXor = false;
 
-        ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
-        ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
-        ROP::Property<TestPropertyType> doubleProp = obj.GetProperty("doubleValue");
-        ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
-        ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+        auto intProp = obj.GetProperty("intValue1");
+        auto floatProp = obj.GetProperty("floatValue1");
+        auto doubleProp = obj.GetProperty("doubleValue");
+        auto stringProp = obj.GetProperty("stringValue");
+        auto boolProp = obj.GetProperty("boolValue");
 
         for (int i = 0; i < TEST_ITERATIONS / 10; ++i)
         {
@@ -398,7 +399,7 @@ void RunPropertySystemPerformanceTests()
         start = Clock::now();
 
         sum = 0;
-        ROP::Property<TestPropertyType> customIntProp = obj.GetProperty("customInt");
+        auto customIntProp = obj.GetProperty("customInt");
 
         for (int i = 0; i < TEST_ITERATIONS; ++i)
         {
@@ -470,9 +471,9 @@ void RunPropertySystemPerformanceTests()
         start = Clock::now();
 
         sum = 0;
-        ROP::Property<TestPropertyType> baseIntProp = obj.GetProperty("baseIntValue");
-        ROP::Property<TestPropertyType> baseFloatProp = obj.GetProperty("baseFloatValue");
-        ROP::Property<TestPropertyType> ownIntProp = obj.GetProperty("intValue1");
+        auto baseIntProp = obj.GetProperty("baseIntValue");
+        auto baseFloatProp = obj.GetProperty("baseFloatValue");
+        auto ownIntProp = obj.GetProperty("intValue1");
 
         for (int i = 0; i < TEST_ITERATIONS; ++i)
         {
@@ -520,8 +521,8 @@ void RunPropertySystemPerformanceTests()
         for (int i = 0; i < TEST_ITERATIONS; ++i)
         {
             // 缓存Property对象（最佳实践）
-            ROP::Property<TestPropertyType> cachedProp1 = obj.GetProperty("intValue1");
-            ROP::Property<TestPropertyType> cachedProp2 = obj.GetProperty("intValue2");
+            auto cachedProp1 = obj.GetProperty("intValue1");
+            auto cachedProp2 = obj.GetProperty("intValue2");
 
             sum += cachedProp1.GetValue<int>();
             sum += cachedProp2.GetValue<int>();
@@ -616,10 +617,10 @@ void RunPropertySystemPerformanceTests()
             for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
             {
                 // 每次迭代都调用GetProperty()（包含查找开销）
-                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
-                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
-                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
-                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+                auto intProp = obj.GetProperty("intValue1");
+                auto floatProp = obj.GetProperty("floatValue1");
+                auto stringProp = obj.GetProperty("stringValue");
+                auto boolProp = obj.GetProperty("boolValue");
 
                 // 通过Property获取值
                 sum += intProp.GetValue<int>();
@@ -649,10 +650,10 @@ void RunPropertySystemPerformanceTests()
             for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
             {
                 // 仅调用GetProperty()，不获取值
-                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
-                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
-                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
-                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+                auto intProp = obj.GetProperty("intValue1");
+                auto floatProp = obj.GetProperty("floatValue1");
+                auto stringProp = obj.GetProperty("stringValue");
+                auto boolProp = obj.GetProperty("boolValue");
 
                 // 累加属性指针地址的低位，防止编译器优化
                 sum += reinterpret_cast<uintptr_t>(&intProp) & 0xFF;
@@ -677,10 +678,10 @@ void RunPropertySystemPerformanceTests()
 
                 int sum = 0;
                 // 缓存Property对象
-                ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
-                ROP::Property<TestPropertyType> floatProp = obj.GetProperty("floatValue1");
-                ROP::Property<TestPropertyType> stringProp = obj.GetProperty("stringValue");
-                ROP::Property<TestPropertyType> boolProp = obj.GetProperty("boolValue");
+                auto intProp = obj.GetProperty("intValue1");
+                auto floatProp = obj.GetProperty("floatValue1");
+                auto stringProp = obj.GetProperty("stringValue");
+                auto boolProp = obj.GetProperty("boolValue");
 
                 for (int i = 0; i < LOOKUP_ITERATIONS; ++i)
                 {
@@ -717,7 +718,7 @@ void RunPropertySystemPerformanceTests()
                 int sum = 0;
                 for (int i = 0; i < ITERATIONS; ++i)
                 {
-                    ROP::Property<TestPropertyType> intProp = obj.GetProperty("intValue1");
+                    auto intProp = obj.GetProperty("intValue1");
                     sum += reinterpret_cast<uintptr_t>(&intProp) & 0xFF;
                 }
 
@@ -745,7 +746,7 @@ void RunPropertySystemPerformanceTests()
                 int sum = 0;
                 for (int i = 0; i < ITERATIONS; ++i)
                 {
-                    ROP::Property<TestPropertyType> prop = obj.GetProperty("intValue1");
+                    auto prop = obj.GetProperty("intValue1");
                     sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
                 }
 
@@ -762,7 +763,7 @@ void RunPropertySystemPerformanceTests()
                 int sum = 0;
                 for (int i = 0; i < ITERATIONS; ++i)
                 {
-                    ROP::Property<TestPropertyType> prop = obj.GetProperty("baseIntValue");
+                    auto prop = obj.GetProperty("baseIntValue");
                     sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
                 }
 
@@ -779,7 +780,7 @@ void RunPropertySystemPerformanceTests()
                 int sum = 0;
                 for (int i = 0; i < ITERATIONS; ++i)
                 {
-                    ROP::Property<TestPropertyType> prop = obj.GetProperty("nonExistentProperty");
+                    auto prop = obj.GetProperty("nonExistentProperty");
                     sum += reinterpret_cast<uintptr_t>(&prop) & 0xFF;
                 }
 
