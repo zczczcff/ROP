@@ -1839,6 +1839,151 @@ int test2()
 }
 
 
+// ==================== 测试自定义字符串类型 ====================
+
+// 简单的自定义字符串类，用于测试StringType模板参数
+class CustomString
+{
+public:
+    // 构造函数
+    CustomString() = default;
+    CustomString(const char* str) : m_data(str) {}
+    CustomString(const std::string& str) : m_data(str) {}
+    explicit CustomString(int value) : m_data(std::to_string(value)) {}
+
+    // 迭代器支持（用于DefaultErrorCallback）
+    using iterator = std::string::iterator;
+    using const_iterator = std::string::const_iterator;
+
+    iterator begin() { return m_data.begin(); }
+    iterator end() { return m_data.end(); }
+    const_iterator begin() const { return m_data.cbegin(); }
+    const_iterator end() const { return m_data.cend(); }
+    const_iterator cbegin() const { return m_data.cbegin(); }
+    const_iterator cend() const { return m_data.cend(); }
+
+    // 运算符重载
+    bool operator==(const CustomString& other) const { return m_data == other.m_data; }
+    bool operator!=(const CustomString& other) const { return m_data != other.m_data; }
+    bool operator<(const CustomString& other) const { return m_data < other.m_data; }
+
+    CustomString& operator=(const CustomString& other)
+    {
+        if (this != &other) { m_data = other.m_data; }
+        return *this;
+    }
+
+    CustomString& operator+=(const CustomString& other)
+    {
+        m_data += other.m_data;
+        return *this;
+    }
+
+    // operator+ 支持（用于字符串连接）
+    CustomString operator+(const CustomString& other) const
+    {
+        CustomString result = *this;
+        result.m_data += other.m_data;
+        return result;
+    }
+
+    // 获取底层字符串
+    const std::string& ToString() const { return m_data; }
+    const char* c_str() const { return m_data.c_str(); }
+
+    // 大小和容量
+    size_t size() const { return m_data.size(); }
+    bool empty() const { return m_data.empty(); }
+
+    // 转换为整数
+    int toInt() const { return std::stoi(m_data); }
+
+private:
+    std::string m_data;
+};
+
+// CustomString的哈希函数
+template<>
+struct std::hash<CustomString>
+{
+    size_t operator()(const CustomString& str) const
+    {
+        return std::hash<std::string>()(str.ToString());
+    }
+};
+
+// CustomString输出流支持
+inline std::ostream& operator<<(std::ostream& os, const CustomString& str)
+{
+    return os << str.ToString();
+}
+
+// CustomString错误回调（专门化）
+template<>
+struct ROP::DefaultErrorCallback<CustomString>
+{
+    void operator()(const CustomString& errorMsg) const
+    {
+        std::cerr << "[CustomString Error] " << errorMsg.ToString() << std::endl;
+    }
+};
+
+
+// ==================== 测试自定义错误回调 ====================
+
+// 错误收集器 - 收集所有错误信息到内存中
+class ErrorCollector
+{
+public:
+    mutable std::vector<std::string> collectedErrors;
+
+    void operator()(const std::string& errorMsg) const
+    {
+        collectedErrors.push_back(errorMsg);
+    }
+
+    void Clear()
+    {
+        collectedErrors.clear();
+    }
+
+    size_t GetErrorCount() const
+    {
+        return collectedErrors.size();
+    }
+
+    std::string GetLastError() const
+    {
+        if (collectedErrors.empty())
+        {
+            return "";
+        }
+        return collectedErrors.back();
+    }
+
+    bool HasErrorContaining(const std::string& substring) const
+    {
+        for (const auto& err : collectedErrors)
+        {
+            if (err.find(substring) != std::string::npos)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void PrintAllErrors() const
+    {
+        std::cout << "  收集到的错误信息（共 " << collectedErrors.size() << " 条）:" << std::endl;
+        for (size_t i = 0; i < collectedErrors.size(); ++i)
+        {
+            std::cout << "    [" << i << "] " << collectedErrors[i] << std::endl;
+        }
+    }
+};
+
+
 // ==================== 测试枚举类型作为属性键值 ====================
 
 // 定义枚举作为键值类型
@@ -2407,6 +2552,409 @@ void TestEnumKeyPropertySystem()
     std::cout << std::string(80, '=') << std::endl;
 }
 
+
+// ==================== 测试自定义字符串类型 ====================
+
+// 属性枚举类型
+enum class CustomStringProperty
+{
+    ID,
+    NAME,
+    DESCRIPTION,
+    VALUE,
+    STATUS
+};
+
+// 将std::string键转换为CustomString的函数对象
+struct stdstringToCustomString
+{
+    CustomString operator()(const std::string& key) const
+    {
+        return CustomString(key);
+    }
+};
+
+// 使用CustomString的测试对象
+class CustomStringObject : public ROP::PropertyObject<
+    CustomStringProperty,
+    std::string,              // KeyType使用std::string（简化测试）
+    std::hash<std::string>,
+    std::equal_to<std::string>,
+    stdstringToCustomString,  // KeyToString返回CustomString
+    CustomString,             // StringType使用自定义字符串
+    ROP::DefaultErrorCallback<CustomString>>  // 自定义错误回调
+{
+    DECLARE_OBJECT(CustomStringObject)
+
+    registrar
+        .RegisterProperty(
+            CustomStringProperty::ID, "id", &CustomStringObject::id,
+            CustomString("对象唯一标识符"))
+        .RegisterProperty(
+            CustomStringProperty::NAME, "name", &CustomStringObject::name,
+            CustomString("对象名称"))
+        .RegisterProperty(
+            CustomStringProperty::DESCRIPTION, "description", &CustomStringObject::description,
+            CustomString("对象详细描述"))
+        .RegisterProperty(
+            CustomStringProperty::VALUE, "value", &CustomStringObject::value,
+            CustomString("对象数值"))
+        .RegisterOptionalProperty(
+            CustomStringProperty::STATUS, "status", &CustomStringObject::status,
+            { "未激活", "激活", "已禁用" },
+            CustomString("当前状态"));
+
+    END_DECLARE_OBJECT()
+
+public:
+    CustomStringObject()
+        : id(0)
+        , name(CustomString("默认名称"))
+        , description(CustomString("默认描述"))
+        , value(0)
+        , status(1)
+    {
+    }
+
+    int id;
+    CustomString name;
+    CustomString description;
+    int value;
+    int status;
+};
+
+// 测试自定义字符串类型的函数
+void TestCustomStringType()
+{
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "测试自定义字符串类型（CustomString）" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+
+    // 测试1: 基本属性访问与CustomString值获取
+    {
+        std::cout << "\n测试1: 基本属性访问与CustomString值获取" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+        obj.id = 1001;
+        obj.name = CustomString("测试对象A");
+        obj.description = CustomString("这是一个使用自定义字符串类型的测试对象");
+        obj.value = 42;
+
+        std::cout << "直接访问成员变量:" << std::endl;
+        std::cout << "  id: " << obj.id << std::endl;
+        std::cout << "  name: " << obj.name << std::endl;
+        std::cout << "  description: " << obj.description << std::endl;
+        std::cout << "  value: " << obj.value << std::endl;
+
+        std::cout << "\n通过Property访问CustomString类型值:" << std::endl;
+        auto nameProp = obj.GetProperty("name");
+        CustomString nameValue = nameProp.GetValue<CustomString>();
+        std::cout << "  name: " << nameValue << " (size: " << nameValue.size() << ")" << std::endl;
+
+        auto descProp = obj.GetProperty("description");
+        CustomString descValue = descProp.GetValue<CustomString>();
+        std::cout << "  description: " << descValue << " (size: " << descValue.size() << ")" << std::endl;
+    }
+
+    // 测试2: CustomString描述和元数据
+    {
+        std::cout << "\n\n测试2: CustomString描述和元数据" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+
+        std::cout << "属性描述（CustomString类型）:" << std::endl;
+
+        auto idProp = obj.GetProperty("id");
+        std::cout << "  id描述: " << idProp.GetDescription() << std::endl;
+
+        auto nameProp = obj.GetProperty("name");
+        std::cout << "  name描述: " << nameProp.GetDescription() << std::endl;
+
+        auto descProp = obj.GetProperty("description");
+        std::cout << "  description描述: " << descProp.GetDescription() << std::endl;
+
+        std::cout << "\n类名（CustomString）: " << obj.GetClassName() << std::endl;
+    }
+
+    // 测试3: CustomString属性值修改
+    {
+        std::cout << "\n\n测试3: CustomString属性值修改" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+
+        auto nameProp = obj.GetProperty("name");
+        std::cout << "原始name: " << obj.name << std::endl;
+
+        nameProp.SetValue(CustomString("修改后的名称"));
+        std::cout << "修改后name: " << obj.name << std::endl;
+
+        auto descProp = obj.GetProperty("description");
+        descProp.SetValue(CustomString("这是通过Property修改的新描述内容"));
+        std::cout << "修改后description: " << obj.description << std::endl;
+    }
+
+    // 测试4: CustomString选项属性
+    {
+        std::cout << "\n\n测试4: CustomString选项属性" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+        obj.status = 0;  // 未激活
+
+        auto statusProp = obj.GetPropertyAsOptional("status");
+        std::cout << "当前status: " << statusProp.GetOptionString() << std::endl;
+
+        std::cout << "\n所有选项（CustomString）:" << std::endl;
+        auto options = statusProp.GetOptionList();
+        for (size_t i = 0; i < options.size(); ++i)
+        {
+            std::cout << "  [" << i << "] " << options[i] << std::endl;
+        }
+
+        std::cout << "\n通过字符串设置选项:" << std::endl;
+        statusProp.SetOptionByString("激活");
+        std::cout << "  设置为激活后: " << statusProp.GetOptionString() << " (值: " << obj.status << ")" << std::endl;
+    }
+
+    // 测试5: 获取所有属性（包含CustomString元数据）
+    {
+        std::cout << "\n\n测试5: 获取所有属性（包含CustomString元数据）" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+
+        auto allProps = obj.GetAllPropertiesOrdered();
+        std::cout << "所有属性列表（共 " << allProps.size() << " 个）:" << std::endl;
+        for (const auto& prop : allProps)
+        {
+            std::cout << "  - " << prop.GetNameString() << ": " << prop.GetDescription() << std::endl;
+        }
+    }
+
+    // 测试6: 属性存在性查询
+    {
+        std::cout << "\n\n测试6: 属性存在性查询" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CustomStringObject obj;
+
+        std::cout << "属性存在检查:" << std::endl;
+        std::cout << "  HasProperty(\"id\"): " << (obj.HasProperty("id") ? "是" : "否") << std::endl;
+        std::cout << "  HasProperty(\"name\"): " << (obj.HasProperty("name") ? "是" : "否") << std::endl;
+        std::cout << "  HasProperty(\"unknown\"): " << (obj.HasProperty("unknown") ? "是" : "否") << std::endl;
+    }
+
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "自定义字符串类型测试完成" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+}
+
+
+// ==================== 测试自定义错误回调 ====================
+
+// 属性枚举类型
+enum class CallbackTestProperty
+{
+    ID,
+    NAME,
+    VALUE
+};
+
+// 使用自定义错误回调的测试对象
+class CallbackTestObject : public ROP::PropertyObject<
+    CallbackTestProperty,
+    std::string,
+    std::hash<std::string>,
+    std::equal_to<std::string>,
+    std::function<std::string(const std::string&)>,
+    std::string,
+    ErrorCollector>
+{
+    DECLARE_OBJECT(CallbackTestObject)
+
+    registrar
+        .RegisterProperty(
+            CallbackTestProperty::ID, "id", &CallbackTestObject::id,
+            "对象ID")
+        .RegisterProperty(
+            CallbackTestProperty::NAME, "name", &CallbackTestObject::name,
+            "对象名称")
+        .RegisterProperty(
+            CallbackTestProperty::VALUE, "value", &CallbackTestObject::value,
+            "对象数值");
+
+    END_DECLARE_OBJECT()
+
+public:
+    CallbackTestObject()
+        : id(0)
+        , name("Default")
+        , value(0)
+    {
+    }
+
+    int id;
+    std::string name;
+    int value;
+};
+
+// 测试自定义错误回调的函数
+void TestCustomErrorCallback()
+{
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "测试自定义错误回调" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+
+    // 测试1: 基本错误收集
+    {
+        std::cout << "\n测试1: 基本错误收集" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CallbackTestObject obj;
+        ErrorCollector collector;
+
+        std::cout << "设置自定义错误收集器..." << std::endl;
+        CallbackTestObject::SetErrorCallback(collector);
+
+        std::cout << "\n访问有效属性（不应触发错误）:" << std::endl;
+        auto validProp = obj.GetProperty("id");
+        std::cout << "  有效属性访问成功" << std::endl;
+        std::cout << "  当前错误数量: " << collector.GetErrorCount() << std::endl;
+
+        std::cout << "\n访问无效属性（应触发错误）:" << std::endl;
+        auto invalidProp = obj.GetProperty("nonexistent_property");
+        std::cout << "  无效属性IsValid(): " << (invalidProp.IsValid() ? "true" : "false") << std::endl;
+
+        if (!invalidProp.IsValid())
+        {
+            try
+            {
+                invalidProp.GetValue<int>();
+            }
+            catch (...)
+            {
+                std::cout << "  异常被抛出（符合预期）" << std::endl;
+            }
+        }
+
+        std::cout << "  当前错误数量: " << collector.GetErrorCount() << std::endl;
+        if (collector.GetErrorCount() > 0)
+        {
+            std::cout << "  最后的错误: " << collector.GetLastError() << std::endl;
+        }
+    }
+
+    // 测试2: 类型不匹配错误
+    {
+        std::cout << "\n\n测试2: 类型不匹配错误" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CallbackTestObject obj;
+        ErrorCollector collector;
+        CallbackTestObject::SetErrorCallback(collector);
+
+        std::cout << "测试类型不匹配错误收集:" << std::endl;
+
+        auto nameProp = obj.GetProperty("name");
+        std::cout << "  name属性实际类型: std::string" << std::endl;
+
+        try
+        {
+            int wrongType = nameProp.GetValue<int>();
+            (void)wrongType;
+            std::cout << "  错误: 类型转换不应该成功" << std::endl;
+        }
+        catch (...)
+        {
+            std::cout << "  捕获到类型不匹配异常" << std::endl;
+        }
+
+        std::cout << "  收集到的错误数量: " << collector.GetErrorCount() << std::endl;
+        if (collector.HasErrorContaining("cannot get value") || collector.HasErrorContaining("Invalid"))
+        {
+            std::cout << "  成功收集到类型错误信息" << std::endl;
+        }
+    }
+
+    // 测试3: 多个错误的批量收集
+    {
+        std::cout << "\n\n测试3: 多个错误的批量收集" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CallbackTestObject obj;
+        ErrorCollector collector;
+        CallbackTestObject::SetErrorCallback(collector);
+
+        std::cout << "尝试访问多个不存在的属性:" << std::endl;
+
+        std::vector<std::string> invalidKeys = {
+            "invalid_key_1", "invalid_key_2", "invalid_key_3"
+        };
+
+        for (const auto& key : invalidKeys)
+        {
+            auto prop = obj.GetProperty(key);
+            if (!prop.IsValid())
+            {
+                try
+                {
+                    prop.GetValue<int>();
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+
+        std::cout << "  尝试访问 " << invalidKeys.size() << " 个无效键" << std::endl;
+        std::cout << "  收集到的错误数量: " << collector.GetErrorCount() << std::endl;
+
+        if (collector.GetErrorCount() > 0)
+        {
+            collector.PrintAllErrors();
+        }
+    }
+
+    // 测试4: 错误收集器的清空和重用
+    {
+        std::cout << "\n\n测试4: 错误收集器的清空和重用" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        CallbackTestObject obj;
+        ErrorCollector collector;
+        CallbackTestObject::SetErrorCallback(collector);
+
+        std::cout << "第一轮错误收集:" << std::endl;
+        auto prop1 = obj.GetProperty("error_1");
+        if (!prop1.IsValid())
+        {
+            try { prop1.GetValue<int>(); } catch (...) {}
+        }
+        std::cout << "  错误数量: " << collector.GetErrorCount() << std::endl;
+
+        std::cout << "\n清空错误收集器:" << std::endl;
+        collector.Clear();
+        std::cout << "  清空后错误数量: " << collector.GetErrorCount() << std::endl;
+
+        std::cout << "\n第二轮错误收集:" << std::endl;
+        auto prop2 = obj.GetProperty("error_2");
+        if (!prop2.IsValid())
+        {
+            try { prop2.GetValue<int>(); } catch (...) {}
+        }
+        std::cout << "  新错误数量: " << collector.GetErrorCount() << std::endl;
+        std::cout << "  最后的错误: " << collector.GetLastError() << std::endl;
+    }
+
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "自定义错误回调测试完成" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+}
+
+
 // 主函数
 int main()
 {
@@ -2431,6 +2979,10 @@ int main()
         TestOptionalPropertySystem();
         test2();
         TestEnumKeyPropertySystem();
+
+        // 新增测试：自定义字符串类型和自定义错误回调
+        TestCustomStringType();
+        TestCustomErrorCallback();
 
         std::cout << "\n所有测试完成！" << std::endl;
         return 0;
