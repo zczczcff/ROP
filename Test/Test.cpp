@@ -2260,7 +2260,7 @@ void TestEnumKeyPropertySystem()
         std::cout << "  有效的RED属性: " << (validProp.IsValid() ? "是" : "否") << std::endl;
 
         // 创建无效的Property对象（通过默认构造函数）
-        ROP::Property<ColorProperty, ColorKey, ColorKeyHash, ColorKeyEqual, ColorKeyToString> invalidProp;
+        ROP::Property<ColorProperty, ColorKey, ColorKeyHash, ColorKeyEqual, ColorKeyToString, std::string> invalidProp;
         std::cout << "  无效的属性对象: " << (invalidProp.IsValid() ? "是" : "否") << std::endl;
 
         // 测试类型不匹配
