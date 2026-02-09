@@ -20,25 +20,40 @@
 
 namespace ROP
 {
+    // 默认错误输出回调
+    template<typename StringType>
+    struct DefaultErrorCallback
+    {
+        void operator()(const StringType& errorMsg) const
+        {
+            std::cerr << std::string(errorMsg.begin(), errorMsg.end()) << std::endl;
+        }
+    };
 
     // 前向声明
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    class PropertyObject;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        class PropertyObject;
 
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    struct PropertyMeta;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        struct PropertyMeta;
 
     // 属性模板类，包装属性和其枚举类型
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    class Property
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        class Property
     {
     public:
+        using ErrorCallbackType = ErrorCallback;
+
         // 默认构造函数 - 创建无效的属性
         Property() : m_type(EnumType{}), m_metaPtr(nullptr), m_objPtr(nullptr)
         {
         }
 
-        Property(const EnumType type, const void* metaPtr, PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* objPtr)
+        Property(const EnumType type, const void* metaPtr,
+            PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* objPtr)
             : m_type(type), m_metaPtr(metaPtr), m_objPtr(objPtr)
         {
         }
@@ -53,7 +68,10 @@ namespace ROP
         EnumType GetType() const
         {
             if (!IsValid())
+            {
+                ErrorCallback()("Invalid property: cannot get type");
                 throw std::runtime_error("Invalid property: cannot get type");
+            }
             return m_type;
         }
 
@@ -62,9 +80,15 @@ namespace ROP
         T GetValue() const
         {
             if (!IsValid())
+            {
+                ErrorCallback()("Invalid property: cannot get value");
                 throw std::runtime_error("Invalid property: cannot get value");
+            }
             if (!m_objPtr)
+            {
+                ErrorCallback()("Invalid property object");
                 throw std::runtime_error("Invalid property object");
+            }
             return m_objPtr->template GetPropertyValue<T>(m_metaPtr);
         }
 
@@ -73,9 +97,15 @@ namespace ROP
         void SetValue(const T& value)
         {
             if (!IsValid())
+            {
+                ErrorCallback()("Invalid property: cannot set value");
                 throw std::runtime_error("Invalid property: cannot set value");
+            }
             if (!m_objPtr)
+            {
+                ErrorCallback()("Invalid property object");
                 throw std::runtime_error("Invalid property object");
+            }
             m_objPtr->template SetPropertyValue<T>(m_metaPtr, value);
         }
 
@@ -84,9 +114,9 @@ namespace ROP
         {
             if (!IsValid())
                 return nullptr;
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_metaPtr);
-            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_objPtr));
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_metaPtr);
+            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_objPtr));
             return static_cast<T*>(ptr);
         }
 
@@ -96,7 +126,10 @@ namespace ROP
         {
             T* ptr = GetPointer<T>();
             if (!ptr)
+            {
+                ErrorCallback()("Failed to get property reference");
                 throw std::runtime_error("Failed to get property reference");
+            }
             return *ptr;
         }
 
@@ -106,7 +139,10 @@ namespace ROP
         {
             const T* ptr = GetConstPointer<T>();
             if (!ptr)
+            {
+                ErrorCallback()("Failed to get property const reference");
                 throw std::runtime_error("Failed to get property const reference");
+            }
             return *ptr;
         }
 
@@ -115,9 +151,9 @@ namespace ROP
         {
             if (!IsValid())
                 return nullptr;
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_metaPtr);
-            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_objPtr));
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_metaPtr);
+            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_objPtr));
             return static_cast<const T*>(ptr);
         }
 
@@ -125,15 +161,21 @@ namespace ROP
         const void* GetMetaPtr() const
         {
             if (!IsValid())
+            {
+                ErrorCallback()("Invalid property: cannot get meta pointer");
                 throw std::runtime_error("Invalid property: cannot get meta pointer");
+            }
             return m_metaPtr;
         }
 
         // 获取所属对象
-        PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* GetObject() const
+        PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* GetObject() const
         {
             if (!IsValid())
+            {
+                ErrorCallback()("Invalid property: cannot get object");
                 throw std::runtime_error("Invalid property: cannot get object");
+            }
             return m_objPtr;
         }
 
@@ -143,8 +185,8 @@ namespace ROP
             if (!IsValid())
                 return StringType{};
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_metaPtr);
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_metaPtr);
             return meta ? meta->description : StringType{};
         }
 
@@ -154,8 +196,8 @@ namespace ROP
             if (!IsValid())
                 return KeyType{};
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_metaPtr);
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_metaPtr);
             return meta ? meta->name : KeyType{};
         }
 
@@ -175,28 +217,29 @@ namespace ROP
             if (!IsValid())
                 return StringType{};
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(m_metaPtr);
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(m_metaPtr);
             return meta ? meta->className : StringType{};
         }
 
     private:
         EnumType m_type;
         const void* m_metaPtr;
-        PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* m_objPtr;
+        PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* m_objPtr;
     };
 
     // 属性元数据
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    struct PropertyMeta
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        struct PropertyMeta
     {
         KeyType name;
         EnumType enumType;
         StringType typeName;
         size_t offset;
         StringType className;
-        std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*)> getter;
-        std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*, void*)> setter;
+        std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*)> getter;
+        std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*, void*)> setter;
         bool isCustomAccessor;
         size_t registrationOrder = 0;
 
@@ -219,10 +262,11 @@ namespace ROP
     };
 
     // 为PropertyMeta提供哈希支持
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    struct PropertyMetaHash
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        struct PropertyMetaHash
     {
-        size_t operator()(const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& prop) const
+        size_t operator()(const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& prop) const
         {
             KeyHash hash;
             return hash(prop.name) ^
@@ -232,42 +276,48 @@ namespace ROP
     };
 
     // 属性容器类型
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    using PropertyMap = std::unordered_map<KeyType,
-        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>, KeyHash, KeyEqual>;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        using PropertyMap = std::unordered_map<KeyType,
+        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>, KeyHash, KeyEqual>;
 
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    using PropertyMultiMap = std::unordered_multimap<KeyType,
-        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>, KeyHash, KeyEqual>;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        using PropertyMultiMap = std::unordered_multimap<KeyType,
+        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>, KeyHash, KeyEqual>;
 
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    using PropertyList = std::vector<PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>>;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        using PropertyList = std::vector<PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>>;
 
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    using PropertySet = std::unordered_set<
-        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>,
-        PropertyMetaHash<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>>;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        using PropertySet = std::unordered_set<
+        PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>,
+        PropertyMetaHash<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>>;
 
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    using ClassNameList = std::vector<StringType>;
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        using ClassNameList = std::vector<StringType>;
 
     // 属性数据结构体 - 将所有静态数据结构合并到这里
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    struct PropertyData
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        struct PropertyData
     {
         // 属性映射表
-        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> ownPropertyMap;          // 自身属性映射表
-        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> directPropertyMap;       // 直接属性映射表（O(1)查找）
+        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> ownPropertyMap;          // 自身属性映射表
+        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> directPropertyMap;       // 直接属性映射表（O(1)查找）
         std::unordered_map<StringType,
-            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> parentPropertyMaps; // 父类属性映射表（类名 -> 属性表）
-        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> combinedPropertyMap;     // 合并后的完整属性表
+            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> parentPropertyMaps; // 父类属性映射表（类名 -> 属性表）
+        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> combinedPropertyMap;     // 合并后的完整属性表
 
         // 属性多映射表（允许多个同名属性）
-        PropertyMultiMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> allPropertiesMultiMap;
+        PropertyMultiMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> allPropertiesMultiMap;
 
         // 属性列表
-        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> ownPropertiesList;      // 自身属性列表（按注册顺序）
-        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> allPropertiesList;      // 所有属性列表（包括继承的，允许同名）
+        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> ownPropertiesList;      // 自身属性列表（按注册顺序）
+        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> allPropertiesList;      // 所有属性列表（包括继承的，允许同名）
 
         // 有序属性名称
         std::vector<KeyType> orderedPropertyNames;                                             // 自身属性按注册顺序的名称列表
@@ -275,10 +325,10 @@ namespace ROP
 
         // 父类属性列表映射
         std::unordered_map<StringType,
-            PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> parentPropertiesListMap;
+            PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> parentPropertiesListMap;
 
         // 父类名称列表（按继承顺序：直接父类在前，最远祖先在后）
-        ClassNameList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> allParentsName;
+        ClassNameList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> allParentsName;
 
         // 新增：选项列表映射（按类名和属性名存储）
         std::unordered_map<StringType, std::unordered_map<KeyType, std::vector<StringType>>> optionalPropertyMap;
@@ -294,24 +344,27 @@ namespace ROP
     };
 
     // 可选属性类，继承自Property，提供选项相关功能
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    class OptionalProperty : public Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        class OptionalProperty : public Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>
     {
     public:
+        using BasePropertyType = Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
+
         // 默认构造函数 - 创建无效的可选属性
-        OptionalProperty() : Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>()
+        OptionalProperty() : BasePropertyType()
         {
         }
 
-        OptionalProperty(const Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& prop)
-            : Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(prop)
+        OptionalProperty(const BasePropertyType& prop)
+            : BasePropertyType(prop)
         {
             // 从PropertyData中获取选项列表
             InitializeOptionList();
         }
 
         OptionalProperty(const OptionalProperty& other)
-            : Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(other), m_optionList(other.m_optionList)
+            : BasePropertyType(other), m_optionList(other.m_optionList)
         {
         }
 
@@ -319,7 +372,7 @@ namespace ROP
         {
             if (this != &other)
             {
-                Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>::operator=(other);
+                BasePropertyType::operator=(other);
                 m_optionList = other.m_optionList;
             }
             return *this;
@@ -416,8 +469,8 @@ namespace ROP
             if (!this->IsValid())
                 return false;
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this->GetMetaPtr());
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this->GetMetaPtr());
             return meta && meta->isOptional;
         }
 
@@ -434,8 +487,8 @@ namespace ROP
             if (!this->IsValid())
                 return {};
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this->GetMetaPtr());
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this->GetMetaPtr());
             if (!meta || !meta->isOptional)
                 return {};
 
@@ -466,8 +519,8 @@ namespace ROP
             if (!this->IsValid())
                 return;
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this->GetMetaPtr());
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this->GetMetaPtr());
             if (!meta || !meta->isOptional)
                 return;
 
@@ -528,20 +581,21 @@ namespace ROP
     // ==================== 公共逻辑提取 - 辅助函数 ====================
 
     // 属性系统工具类
-    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    class PropertySystemUtils
+    template<typename EnumType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        class PropertySystemUtils
     {
     public:
         // 注册父类属性到父类映射表
         template<typename ParentClass>
         static void RegisterParentProperties(
-            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData,
+            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData,
             const StringType& parentClassName)
         {
             auto& parentPropertyData = ParentClass::GetPropertyDataStatic();
 
             // 复制父类的自身属性
-            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> parentCopy;
+            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> parentCopy;
             for (const auto& pair : parentPropertyData.ownPropertyMap)
             {
                 parentCopy[pair.first] = pair.second;
@@ -579,12 +633,12 @@ namespace ROP
         // 构建所有父类名称列表
         template<typename ParentClass>
         static void BuildAllParentsNameList(
-            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData,
+            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData,
             const StringType& parentClassName)
         {
             propertyData.allParentsName.clear();
 
-            if constexpr (!std::is_same_v<ParentClass, PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>>)
+            if constexpr (!std::is_same_v<ParentClass, PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>>)
             {
                 // 添加直接父类
                 propertyData.allParentsName.push_back(parentClassName);
@@ -600,7 +654,7 @@ namespace ROP
 
         // 构建父类属性列表映射
         static void BuildParentPropertiesListMap(
-            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData)
+            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData)
         {
             propertyData.parentPropertiesListMap.clear();
 
@@ -614,7 +668,7 @@ namespace ROP
                 if (orderedIt != propertyData.parentOrderedPropertyNames.end())
                 {
                     // 按照注册顺序构建属性列表
-                    PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> orderedList;
+                    PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> orderedList;
                     for (const auto& propName : orderedIt->second)
                     {
                         auto propIt = propertyMap.find(propName);
@@ -630,7 +684,7 @@ namespace ROP
 
         // 构建所有属性列表（包括父类） - 允许同名属性，先子类后父类，且每个类内有序
         static void BuildAllPropertiesList(
-            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData)
+            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData)
         {
             propertyData.allPropertiesList.clear();
             propertyData.allPropertiesMultiMap.clear();
@@ -662,7 +716,7 @@ namespace ROP
 
         // 初始化属性数据（合并多个步骤）
         static void InitializePropertyData(
-            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData)
+            PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData)
         {
             // 初始化直接属性映射
             propertyData.directPropertyMap.clear();
@@ -712,10 +766,11 @@ namespace ROP
         typename KeyHash = std::hash<KeyType>,
         typename KeyEqual = std::equal_to<KeyType>,
         typename KeyToString = std::function<std::string(const KeyType&)>,
-        typename StringType = std::string>
+        typename StringType = std::string,
+        typename ErrorCallback = DefaultErrorCallback<StringType>>
         class PropertyObject
     {
-        friend class Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>;
+        friend class Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
     public:
         using ROPEnumClass = EnumType;
         using ROPKeyType = KeyType;
@@ -723,53 +778,71 @@ namespace ROP
         using ROPKeyEqual = KeyEqual;
         using ROPKeyToString = KeyToString;
         using ROPStringType = StringType;
-        using ROPPropertyDataType = PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>;
-        using ROPObjectType = PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>;
+        using ROPErrorCallback = ErrorCallback;
+        using ROPPropertyDataType = PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
+        using ROPObjectType = PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
+        using ROPProperty = Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
+        using ROPOptionalProperty = OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>;
+
         virtual ~PropertyObject() = default;
 
         // 获取类名
         virtual StringType GetClassName() const = 0;
 
         // 获取属性数据结构体（供OptionalProperty使用）
-        virtual const PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetPropertyData() const = 0;
+        virtual const PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetPropertyData() const = 0;
 
         static void StaticInitializeProperties() {};
+
+        // 静态错误输出函数
+        static void ReportError(const StringType& errorMsg)
+        {
+            static ROPErrorCallback s_errorCallback = ROPErrorCallback();
+            s_errorCallback(errorMsg);
+        }
+
+        // 设置错误回调（可选）
+        static void SetErrorCallback(const ROPErrorCallback& callback)
+        {
+            static ROPErrorCallback s_errorCallback = callback;
+            s_errorCallback = callback;
+        }
 
         // 公共成员函数 - 通过GetPropertyData()统一访问
 
         // 获取父类名列表
-        const ClassNameList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetAllParentsName() const
+        const ClassNameList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetAllParentsName() const
         {
             return GetPropertyData().allParentsName;
         }
 
         // 获取自身定义的属性（不包含继承的）
-        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetOwnPropertiesList() const
+        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetOwnPropertiesList() const
         {
             return GetPropertyData().ownPropertiesList;
         }
 
         // 获取所有属性（包括继承的，允许多个同名的属性）
-        const PropertyMultiMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetAllPropertiesMultiMap() const
+        const PropertyMultiMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetAllPropertiesMultiMap() const
         {
             return GetPropertyData().allPropertiesMultiMap;
         }
 
         // 获取父类属性映射表
         const std::unordered_map<StringType,
-            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>>&GetParentPropertiesMap() const
+            PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>>&GetParentPropertiesMap() const
         {
             return GetPropertyData().parentPropertyMaps;
         }
 
         // 获取直接属性映射（仅包含自身属性，O(1)查找）
-        const PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetDirectPropertyMap() const
+        const PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetDirectPropertyMap() const
         {
             return GetPropertyData().directPropertyMap;
         }
 
         // 获取指定父类的属性列表（有序）
-        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetParentPropertiesList(const StringType& parentClassName) const
+        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetParentPropertiesList(const StringType& parentClassName) const
         {
             const auto& parentPropertiesListMap = GetPropertyData().parentPropertiesListMap;
             auto it = parentPropertiesListMap.find(parentClassName);
@@ -777,26 +850,26 @@ namespace ROP
             {
                 return it->second;
             }
-            static PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> emptyList;
+            static PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> emptyList;
             return emptyList;
         }
 
         // 获取自身可用属性列表（包括继承的，允许同名）
-        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& GetAllPropertiesList() const
+        const PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& GetAllPropertiesList() const
         {
             return GetPropertyData().allPropertiesList;
         }
 
         // 通过名称获取属性包装对象 - 如果有多个同名属性，返回第一个（子类的）
-        Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetProperty(const KeyType& name) const
+        Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetProperty(const KeyType& name) const
         {
             // 优先从直接属性映射中查找（O(1)）
             const auto& directMap = GetDirectPropertyMap();
             auto it = directMap.find(name);
             if (it != directMap.end())
             {
-                return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                    it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this));
+                return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                    it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this));
             }
 
             // 如果直接映射中没找到，再从所有属性中查找
@@ -805,16 +878,16 @@ namespace ROP
 
             if (range.first != range.second)
             {
-                return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                    range.first->second.enumType, &range.first->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this));
+                return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                    range.first->second.enumType, &range.first->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this));
             }
 
             // 找不到时返回无效的Property对象
-            return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+            return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
         }
 
         // 通过名称和类名获取属性包装对象 - 精确查找特定类的属性
-        Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetProperty(const KeyType& name, const StringType& className) const
+        Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetProperty(const KeyType& name, const StringType& className) const
         {
             auto& allProps = GetAllPropertiesMultiMap();
             auto range = allProps.equal_range(name);
@@ -823,41 +896,41 @@ namespace ROP
             {
                 if (it->second.className == className)
                 {
-                    return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                        it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this));
+                    return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                        it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this));
                 }
             }
 
             // 找不到时返回无效的Property对象
-            return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+            return Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
         }
 
         // 获取所有同名属性（返回列表）
-        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> GetAllPropertiesByName(const KeyType& name) const
+        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> GetAllPropertiesByName(const KeyType& name) const
         {
-            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> result;
+            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> result;
             auto& allProps = GetAllPropertiesMultiMap();
             auto range = allProps.equal_range(name);
 
             for (auto it = range.first; it != range.second; ++it)
             {
-                result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                    it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this)));
+                result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                    it->second.enumType, &it->second, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this)));
             }
 
             return result;
         }
 
         // 获取所有属性（包括继承的），按顺序（先子类后父类，每个类内按注册顺序）
-        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> GetAllPropertiesOrdered() const
+        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> GetAllPropertiesOrdered() const
         {
-            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> result;
+            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> result;
             const auto& allPropsList = GetAllPropertiesList();
 
             for (const auto& meta : allPropsList)
             {
-                result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                    meta.enumType, &meta, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this)));
+                result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                    meta.enumType, &meta, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this)));
             }
 
             return result;
@@ -868,11 +941,15 @@ namespace ROP
         template<typename T>
         T GetPropertyValue(const void* metaPtr) const
         {
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(metaPtr);
-            if (!meta) throw std::runtime_error("Invalid property meta pointer");
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(metaPtr);
+            if (!meta)
+            {
+                ReportError(StringType("Invalid property meta pointer"));
+                throw std::runtime_error("Invalid property meta pointer");
+            }
 
-            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this));
+            void* ptr = meta->getter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this));
             return *reinterpret_cast<T*>(ptr);
         }
 
@@ -880,13 +957,18 @@ namespace ROP
         template<typename T>
         void SetPropertyValue(const void* metaPtr, const T& value)
         {
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(metaPtr);
-            if (!meta) throw std::runtime_error("Invalid property meta pointer");
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(metaPtr);
+            if (!meta)
+            {
+                ReportError(StringType("Invalid property meta pointer"));
+                throw std::runtime_error("Invalid property meta pointer");
+            }
 
             T temp = value;
-            meta->setter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this), &temp);
+            meta->setter(const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this), &temp);
         }
+
     public:
         // 查找属性（检查所有属性，包括继承的）
         bool HasProperty(const KeyType& name) const
@@ -916,9 +998,9 @@ namespace ROP
         }
 
         // 获取指定父类的属性列表（按照注册顺序）
-        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetParentClassProperties(const StringType& parentClassName) const
+        PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetParentClassProperties(const StringType& parentClassName) const
         {
-            PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> result;
+            PropertyList<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> result;
             auto& allProps = GetAllPropertiesMultiMap();
 
             for (const auto& pair : allProps)
@@ -931,8 +1013,8 @@ namespace ROP
 
             // 按照注册顺序排序
             std::sort(result.begin(), result.end(),
-                [](const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& a,
-                    const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& b)
+                [](const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& a,
+                    const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& b)
                 {
                     return a.registrationOrder < b.registrationOrder;
                 });
@@ -941,7 +1023,7 @@ namespace ROP
         }
 
         // 获取指定父类的属性映射表
-        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetParentClassPropertyMap(const StringType& parentClassName) const
+        PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetParentClassPropertyMap(const StringType& parentClassName) const
         {
             auto& parentMaps = GetParentPropertiesMap();
             auto it = parentMaps.find(parentClassName);
@@ -949,48 +1031,49 @@ namespace ROP
             {
                 return it->second;
             }
-            return PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+            return PropertyMap<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
         }
 
         // 将Property转换为OptionalProperty
-        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> ToOptionalProperty(
-            const Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& prop) const
+        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> ToOptionalProperty(
+            const Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& prop) const
         {
             // 如果属性无效，返回无效的OptionalProperty
             if (!prop.IsValid())
             {
-                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
             }
 
-            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* meta =
-                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(prop.GetMetaPtr());
+            const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* meta =
+                static_cast<const PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(prop.GetMetaPtr());
 
             if (!meta || !meta->isOptional)
             {
+                ReportError(StringType("Property is not an optional property"));
                 throw std::runtime_error("Property is not an optional property");
             }
 
-            return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(prop);
+            return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(prop);
         }
 
         // 通过Property获取OptionalProperty
-        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetPropertyAsOptional(const KeyType& name) const
+        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetPropertyAsOptional(const KeyType& name) const
         {
             auto prop = GetProperty(name);
             if (!prop.IsValid())
             {
-                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
             }
             return ToOptionalProperty(prop);
         }
 
         // 通过名称和类名获取OptionalProperty
-        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> GetPropertyAsOptional(const KeyType& name, const StringType& className) const
+        OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> GetPropertyAsOptional(const KeyType& name, const StringType& className) const
         {
             auto prop = GetProperty(name, className);
             if (!prop.IsValid())
             {
-                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>();
+                return OptionalProperty<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>();
             }
             return ToOptionalProperty(prop);
         }
@@ -1020,9 +1103,9 @@ namespace ROP
         }
 
         // 获取所有同名属性，按顺序（先子类后父类，每个类内按注册顺序）
-        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> GetPropertiesByNameOrdered(const KeyType& name) const
+        std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> GetPropertiesByNameOrdered(const KeyType& name) const
         {
-            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>> result;
+            std::vector<Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>> result;
             const auto& allPropsList = GetAllPropertiesList();
 
             for (const auto& meta : allPropsList)
@@ -1030,8 +1113,8 @@ namespace ROP
                 KeyEqual equal;
                 if (equal(meta.name, name))
                 {
-                    result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>(
-                        meta.enumType, &meta, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*>(this)));
+                    result.push_back(Property<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>(
+                        meta.enumType, &meta, const_cast<PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*>(this)));
                 }
             }
 
@@ -1061,11 +1144,12 @@ namespace ROP
     };
 
     // 属性注册器模板类（支持流式接口）
-    template<typename EnumType, typename ClassType, typename KeyType, typename KeyHash, typename KeyEqual, typename KeyToString, typename StringType>
-    class PropertyRegistrar
+    template<typename EnumType, typename ClassType, typename KeyType, typename KeyHash, typename KeyEqual,
+        typename KeyToString, typename StringType, typename ErrorCallback>
+        class PropertyRegistrar
     {
     public:
-        PropertyRegistrar(PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& propertyData, const StringType& className)
+        PropertyRegistrar(PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& propertyData, const StringType& className)
             : m_propertyData(propertyData), m_className(className)
         {
         }
@@ -1083,23 +1167,23 @@ namespace ROP
                 &(reinterpret_cast<ClassType*>(0)->*memberPtr));
 
             // 创建getter函数
-            std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*)> getter =
-                [memberPtr](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* obj) -> void*
+            std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*)> getter =
+                [memberPtr](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* obj) -> void*
             {
                 ClassType* derived = static_cast<ClassType*>(obj);
                 return &(derived->*memberPtr);
             };
 
             // 创建setter函数
-            std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*, void*)> setter =
-                [memberPtr](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* obj, void* value)
+            std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*, void*)> setter =
+                [memberPtr](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* obj, void* value)
             {
                 ClassType* derived = static_cast<ClassType*>(obj);
                 derived->*memberPtr = *static_cast<PropertyType*>(value);
             };
 
             // 创建属性元数据
-            PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> meta;
+            PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> meta;
             meta.name = name;
             meta.enumType = enumType;
             // 使用类型名转换为StringType
@@ -1137,8 +1221,8 @@ namespace ROP
             const StringType& description = StringType())
         {
             // 创建getter函数
-            std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*)> getter =
-                [getterFunc](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* obj) -> void*
+            std::function<void* (PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*)> getter =
+                [getterFunc](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* obj) -> void*
             {
                 ClassType* derived = static_cast<ClassType*>(obj);
                 PropertyType& ref = (derived->*getterFunc)();
@@ -1146,15 +1230,15 @@ namespace ROP
             };
 
             // 创建setter函数
-            std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>*, void*)> setter =
-                [setterFunc](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>* obj, void* value)
+            std::function<void(PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>*, void*)> setter =
+                [setterFunc](PropertyObject<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>* obj, void* value)
             {
                 ClassType* derived = static_cast<ClassType*>(obj);
                 (derived->*setterFunc)(*static_cast<PropertyType*>(value));
             };
 
             // 创建属性元数据
-            PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType> meta;
+            PropertyMeta<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback> meta;
             meta.name = name;
             meta.enumType = enumType;
             meta.typeName = StringType(typeid(PropertyType).name());
@@ -1216,10 +1300,11 @@ namespace ROP
                 {
                     if (!optionSet.insert(option).second)
                     {
-                        std::cerr << "Warning: Duplicate option string '"
-                            << std::string(option.begin(), option.end())  // 暂时用std::string输出
-                            << "' in property '" << std::string(KeyToString()(name).begin(), KeyToString()(name).end())
-                            << "' of class '" << std::string(m_className.begin(), m_className.end()) << "'" << std::endl;
+                        // 使用错误回调输出警告
+                        StringType warningMsg = StringType("Warning: Duplicate option string '") + option +
+                            "' in property '" + KeyToString()(name) +
+                            "' of class '" + m_className + "'";
+                        ErrorCallback()(warningMsg);
                     }
                 }
             }
@@ -1254,7 +1339,7 @@ namespace ROP
             // 存储到选项映射中
             m_propertyData.optionalPropertyMap[m_className][name] = optionVec;
 
-            // 验证选项映射值从0开始且连续（同上）
+            // 验证选项映射值从0开始且连续
             if (!optionVec.empty())
             {
                 std::unordered_set<StringType> optionSet;
@@ -1262,10 +1347,11 @@ namespace ROP
                 {
                     if (!optionSet.insert(option).second)
                     {
-                        std::cerr << "Warning: Duplicate option string '"
-                            << std::string(option.begin(), option.end())
-                            << "' in property '" << std::string(KeyToString()(name).begin(), KeyToString()(name).end())
-                            << "' of class '" << std::string(m_className.begin(), m_className.end()) << "'" << std::endl;
+                        // 使用错误回调输出警告
+                        StringType warningMsg = StringType("Warning: Duplicate option string '") + option +
+                            "' in property '" + KeyToString()(name) +
+                            "' of class '" + m_className + "'";
+                        ErrorCallback()(warningMsg);
                     }
                 }
             }
@@ -1286,7 +1372,7 @@ namespace ROP
         }
 
     private:
-        PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType>& m_propertyData;
+        PropertyData<EnumType, KeyType, KeyHash, KeyEqual, KeyToString, StringType, ErrorCallback>& m_propertyData;
         StringType m_className;
     };
 
@@ -1303,9 +1389,9 @@ namespace ROP
         const ROPStringType classnamestring = ROPStringType(#ClassName); \
         \
         /* 首先注册父类的属性到父类映射表 */ \
-        if constexpr (!std::is_same_v<ParentClassName, ROP::PropertyObject<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>>) { \
+        if constexpr (!std::is_same_v<ParentClassName, ROP::PropertyObject<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>>) { \
             ParentClassName::StaticInitializeProperties(); \
-            ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>::RegisterParentProperties<ParentClassName>( \
+            ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>::RegisterParentProperties<ParentClassName>( \
                 propertyData, ROPStringType(#ParentClassName)); \
         } \
         \
@@ -1314,17 +1400,17 @@ namespace ROP
 // 辅助宏：完成属性系统初始化（合并后的版本）
 #define FINALIZE_PROPERTY_SYSTEM() \
         /* 构建父类名称列表 */ \
-        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>::BuildAllParentsNameList<ROPParentClassType>( \
+        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>::BuildAllParentsNameList<ROPParentClassType>( \
             propertyData, ParentClassNameString); \
         \
         /* 构建父类属性列表映射 */ \
-        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>::BuildParentPropertiesListMap(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>::BuildParentPropertiesListMap(propertyData); \
         \
         /* 使用合并函数初始化属性数据 */ \
-        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>::InitializePropertyData(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>::InitializePropertyData(propertyData); \
         \
         /* 构建所有属性列表（包括父类，允许同名） */ \
-        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType>::BuildAllPropertiesList(propertyData); \
+        ROP::PropertySystemUtils<ROPEnumClass, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback>::BuildAllPropertiesList(propertyData); \
         \
         propertyData.initialized = true; \
         return true; \
@@ -1355,7 +1441,7 @@ protected: \
             INIT_PROPERTY_SYSTEM(ClassName, ParentClassName) \
             \
             /* 创建注册器对象 */ \
-            ROP::PropertyRegistrar<ROPEnumClass, ClassName, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType> \
+            ROP::PropertyRegistrar<ROPEnumClass, ClassName, ROPKeyType, ROPKeyHash, ROPKeyEqual, ROPKeyToString, ROPStringType, ROPErrorCallback> \
                 registrar(propertyData, classnamestring); 
 
 // 简化宏：用于没有父类的情况
@@ -1375,7 +1461,6 @@ protected: \
     } \
     \
 private:
-
 
 ////使用示例
 //#include <ROP/RunTimeObjectProperty.h>
