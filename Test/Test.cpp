@@ -1839,6 +1839,574 @@ int test2()
 }
 
 
+// ==================== 测试枚举类型作为属性键值 ====================
+
+// 定义枚举作为键值类型
+enum class ColorKey
+{
+    RED,
+    GREEN,
+    BLUE,
+    ALPHA,
+    BRIGHTNESS,
+    CONTRAST,
+    HUE,
+    SATURATION,
+    MODE,
+    ENABLED
+};
+
+// 为ColorKey定义哈希函数
+struct ColorKeyHash
+{
+    size_t operator()(const ColorKey& key) const
+    {
+        return static_cast<size_t>(key);
+    }
+};
+
+// 为ColorKey定义相等比较函数
+struct ColorKeyEqual
+{
+    bool operator()(const ColorKey& lhs, const ColorKey& rhs) const
+    {
+        return lhs == rhs;
+    }
+};
+
+// 为ColorKey定义转字符串函数
+struct ColorKeyToString
+{
+    std::string operator()(const ColorKey& key) const
+    {
+        switch (key)
+        {
+        case ColorKey::RED: return "RED";
+        case ColorKey::GREEN: return "GREEN";
+        case ColorKey::BLUE: return "BLUE";
+        case ColorKey::ALPHA: return "ALPHA";
+        case ColorKey::BRIGHTNESS: return "BRIGHTNESS";
+        case ColorKey::CONTRAST: return "CONTRAST";
+        case ColorKey::HUE: return "HUE";
+        case ColorKey::SATURATION: return "SATURATION";
+        case ColorKey::MODE: return "MODE";
+        case ColorKey::ENABLED: return "ENABLED";
+        default: return "UNKNOWN";
+        }
+    }
+};
+
+// 定义属性枚举类型
+enum class ColorProperty
+{
+    INT_VALUE,
+    FLOAT_VALUE,
+    STRING_VALUE,
+    BOOL_VALUE,
+    OPTIONAL_VALUE
+};
+
+// 使用枚举作为键值的颜色对象
+class ColorObject : public ROP::PropertyObject<
+    ColorProperty,
+    ColorKey,           // 使用枚举作为键值类型
+    ColorKeyHash,       // 枚举哈希函数
+    ColorKeyEqual,      // 枚举相等比较
+    ColorKeyToString>   // 枚举转字符串函数
+{
+    DECLARE_OBJECT(ColorObject)
+
+    registrar
+        .RegisterProperty(
+            ColorProperty::INT_VALUE, ColorKey::RED, &ColorObject::red,
+            "红色分量 (0-255)")
+        .RegisterProperty(
+            ColorProperty::INT_VALUE, ColorKey::GREEN, &ColorObject::green,
+            "绿色分量 (0-255)")
+        .RegisterProperty(
+            ColorProperty::INT_VALUE, ColorKey::BLUE, &ColorObject::blue,
+            "蓝色分量 (0-255)")
+        .RegisterProperty(
+            ColorProperty::FLOAT_VALUE, ColorKey::ALPHA, &ColorObject::alpha,
+            "透明度 (0.0-1.0)")
+        .RegisterProperty(
+            ColorProperty::FLOAT_VALUE, ColorKey::BRIGHTNESS, &ColorObject::brightness,
+            "亮度 (0.0-1.0)")
+        .RegisterProperty(
+            ColorProperty::FLOAT_VALUE, ColorKey::CONTRAST, &ColorObject::contrast,
+            "对比度 (0.0-2.0)")
+        .RegisterOptionalProperty(
+            ColorProperty::OPTIONAL_VALUE, ColorKey::MODE, &ColorObject::mode,
+            { "RGB", "HSL", "HSV", "CMYK", "LAB" },
+            "颜色模式")
+        .RegisterOptionalProperty(
+            ColorProperty::OPTIONAL_VALUE, ColorKey::HUE, &ColorObject::hue,
+            { "红", "橙", "黄", "绿", "青", "蓝", "紫" },
+            "色调")
+        .RegisterProperty(
+            ColorProperty::FLOAT_VALUE, ColorKey::SATURATION, &ColorObject::saturation,
+            "饱和度 (0.0-1.0)")
+        .RegisterProperty(
+            ColorProperty::BOOL_VALUE, ColorKey::ENABLED, &ColorObject::enabled,
+            "是否启用");
+
+    END_DECLARE_OBJECT()
+
+public:
+    ColorObject() :
+        red(0), green(0), blue(0),
+        alpha(1.0f), brightness(1.0f), contrast(1.0f),
+        mode(0), hue(0), saturation(1.0f),
+        enabled(true)
+    {
+    }
+
+    int red;
+    int green;
+    int blue;
+    float alpha;
+    float brightness;
+    float contrast;
+    int mode;       // 0: RGB, 1: HSL, 2: HSV, 3: CMYK, 4: LAB
+    int hue;        // 0: 红, 1: 橙, 2: 黄, 3: 绿, 4: 青, 5: 蓝, 6: 紫
+    float saturation;
+    bool enabled;
+};
+
+// 测试枚举键值的派生类
+class ExtendedColorObject : public ColorObject
+{
+    DECLARE_OBJECT_WITH_PARENT(ExtendedColorObject, ColorObject)
+
+    registrar
+        .RegisterOptionalProperty(
+            ColorProperty::OPTIONAL_VALUE, ColorKey::MODE, &ExtendedColorObject::mode,
+            { "Extended_RGB", "Extended_HSL", "Extended_HSV" },
+            "扩展颜色模式")
+        .RegisterProperty(
+            ColorProperty::FLOAT_VALUE, ColorKey::BRIGHTNESS, &ExtendedColorObject::brightness,
+            "扩展亮度");
+
+    END_DECLARE_OBJECT()
+
+public:
+    ExtendedColorObject() :
+        mode(0),
+        brightness(0.8f)
+    {
+    }
+
+    int mode;           // 重写父类的mode
+    float brightness;   // 重写父类的brightness
+};
+
+// 测试枚举键值的函数
+void TestEnumKeyPropertySystem()
+{
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "测试枚举类型作为属性键值" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+
+    // ==================== 测试1: 基本枚举键值访问 ====================
+    {
+        std::cout << "\n测试1: 基本枚举键值访问" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+        color.red = 255;
+        color.green = 128;
+        color.blue = 64;
+        color.alpha = 0.75f;
+        color.brightness = 0.9f;
+        color.contrast = 1.2f;
+        color.mode = 1; // HSL
+        color.hue = 2;  // 黄
+        color.saturation = 0.8f;
+        color.enabled = true;
+
+        // 测试通过枚举键值访问属性
+        std::cout << "通过枚举键值访问属性:" << std::endl;
+
+        auto redProp = color.GetProperty(ColorKey::RED);
+        std::cout << "  RED: " << redProp.GetValue<int>()
+            << " (描述: " << redProp.GetDescription() << ")" << std::endl;
+
+        auto greenProp = color.GetProperty(ColorKey::GREEN);
+        std::cout << "  GREEN: " << greenProp.GetValue<int>()
+            << " (描述: " << greenProp.GetDescription() << ")" << std::endl;
+
+        auto blueProp = color.GetProperty(ColorKey::BLUE);
+        std::cout << "  BLUE: " << blueProp.GetValue<int>()
+            << " (描述: " << blueProp.GetDescription() << ")" << std::endl;
+
+        auto alphaProp = color.GetProperty(ColorKey::ALPHA);
+        std::cout << "  ALPHA: " << alphaProp.GetValue<float>()
+            << " (描述: " << alphaProp.GetDescription() << ")" << std::endl;
+
+        // 测试枚举键值的字符串表示
+        std::cout << "\n枚举键值的字符串表示:" << std::endl;
+        std::cout << "  RED键值: " << color.GetProperty(ColorKey::RED).GetNameString() << std::endl;
+        std::cout << "  GREEN键值: " << color.GetProperty(ColorKey::GREEN).GetNameString() << std::endl;
+        std::cout << "  BLUE键值: " << color.GetProperty(ColorKey::BLUE).GetNameString() << std::endl;
+
+        // 验证属性数量
+        std::cout << "\n属性统计:" << std::endl;
+        std::cout << "  直接属性数量: " << color.GetDirectPropertyMap().size() << std::endl;
+        std::cout << "  所有属性数量: " << color.GetAllPropertiesList().size() << std::endl;
+
+        // 验证枚举键值的相等性
+        std::cout << "\n枚举键值相等性验证:" << std::endl;
+        auto prop1 = color.GetProperty(ColorKey::RED);
+        auto prop2 = color.GetProperty(ColorKey::RED);
+        std::cout << "  两个RED属性相等: "
+            << (prop1.GetMetaPtr() == prop2.GetMetaPtr() ? "是" : "否") << std::endl;
+    }
+
+    // ==================== 测试2: 枚举键值的选项属性 ====================
+    {
+        std::cout << "\n\n测试2: 枚举键值的选项属性" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+        color.mode = 0; // RGB
+        color.hue = 5;  // 蓝
+
+        std::cout << "选项属性测试:" << std::endl;
+
+        // 获取选项属性
+        auto modeProp = color.GetPropertyAsOptional(ColorKey::MODE);
+        std::cout << "  MODE: " << modeProp.GetOptionString()
+            << " (值: " << modeProp.GetValue<int>() << ")" << std::endl;
+
+        auto hueProp = color.GetPropertyAsOptional(ColorKey::HUE);
+        std::cout << "  HUE: " << hueProp.GetOptionString()
+            << " (值: " << hueProp.GetValue<int>() << ")" << std::endl;
+
+        // 测试通过字符串设置选项
+        std::cout << "\n通过字符串设置选项:" << std::endl;
+        modeProp.SetOptionByString("HSL");
+        std::cout << "  MODE设置为HSL: " << modeProp.GetOptionString()
+            << " (值: " << color.mode << ")" << std::endl;
+
+        hueProp.SetOptionByString("绿");
+        std::cout << "  HUE设置为绿: " << hueProp.GetOptionString()
+            << " (值: " << color.hue << ")" << std::endl;
+
+        // 获取选项列表
+        std::cout << "\nMODE选项列表 (" << modeProp.GetOptionCount() << "个选项):" << std::endl;
+        auto modeOptions = modeProp.GetOptionList();
+        for (size_t i = 0; i < modeOptions.size(); ++i)
+        {
+            std::cout << "  " << i << ": " << modeOptions[i] << std::endl;
+        }
+    }
+
+    // ==================== 测试3: 枚举键值的继承和重写 ====================
+    {
+        std::cout << "\n\n测试3: 枚举键值的继承和重写" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ExtendedColorObject extColor;
+        extColor.red = 200;
+        extColor.green = 100;
+        extColor.blue = 50;
+        extColor.mode = 1; // Extended_HSL
+        extColor.brightness = 0.7f;
+
+        std::cout << "继承属性测试:" << std::endl;
+
+        // 访问继承的属性
+        auto redProp = extColor.GetProperty(ColorKey::RED);
+        std::cout << "  继承的RED: " << redProp.GetValue<int>()
+            << " (类: " << redProp.GetClassName() << ")" << std::endl;
+
+        auto greenProp = extColor.GetProperty(ColorKey::GREEN);
+        std::cout << "  继承的GREEN: " << greenProp.GetValue<int>()
+            << " (类: " << greenProp.GetClassName() << ")" << std::endl;
+
+        // 测试重写的属性
+        auto modeProp = extColor.GetProperty(ColorKey::MODE);
+        auto modeOptional = extColor.GetPropertyAsOptional(ColorKey::MODE);
+        std::cout << "\n  重写的MODE: " << modeProp.GetValue<int>()
+            << " -> " << modeOptional.GetOptionString()
+            << " (类: " << modeProp.GetClassName() << ")" << std::endl;
+
+        auto brightnessProp = extColor.GetProperty(ColorKey::BRIGHTNESS);
+        std::cout << "  重写的BRIGHTNESS: " << brightnessProp.GetValue<float>()
+            << " (类: " << brightnessProp.GetClassName() << ")" << std::endl;
+
+        // 访问父类的原始属性
+        auto parentModeProp = extColor.GetProperty(ColorKey::MODE, "ColorObject");
+        auto parentModeOptional = extColor.GetPropertyAsOptional(ColorKey::MODE, "ColorObject");
+        std::cout << "\n  父类的MODE: " << parentModeProp.GetValue<int>()
+            << " -> " << parentModeOptional.GetOptionString()
+            << " (类: " << parentModeProp.GetClassName() << ")" << std::endl;
+
+        auto parentBrightnessProp = extColor.GetProperty(ColorKey::BRIGHTNESS, "ColorObject");
+        std::cout << "  父类的BRIGHTNESS: " << parentBrightnessProp.GetValue<float>()
+            << " (类: " << parentBrightnessProp.GetClassName() << ")" << std::endl;
+
+        // 验证属性数量
+        std::cout << "\n属性统计:" << std::endl;
+        std::cout << "  自身属性数量: " << extColor.GetOwnPropertiesList().size() << std::endl;
+        std::cout << "  所有属性数量: " << extColor.GetAllPropertiesList().size() << std::endl;
+    }
+
+    // ==================== 测试4: 枚举键值的批量操作 ====================
+    {
+        std::cout << "\n\n测试4: 枚举键值的批量操作" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+        color.red = 128;
+        color.green = 200;
+        color.blue = 75;
+
+        std::cout << "批量获取所有属性:" << std::endl;
+        auto allProps = color.GetAllPropertiesOrdered();
+
+        for (const auto& prop : allProps)
+        {
+            std::cout << "  " << prop.GetNameString()
+                << " (" << prop.GetClassName() << "): ";
+
+            try
+            {
+                if (prop.GetType() == ColorProperty::INT_VALUE)
+                {
+                    std::cout << prop.GetValue<int>();
+                }
+                else if (prop.GetType() == ColorProperty::FLOAT_VALUE)
+                {
+                    std::cout << prop.GetValue<float>();
+                }
+                else if (prop.GetType() == ColorProperty::BOOL_VALUE)
+                {
+                    std::cout << (prop.GetValue<bool>() ? "true" : "false");
+                }
+                else if (prop.GetType() == ColorProperty::OPTIONAL_VALUE)
+                {
+                    auto optionalProp = color.ToOptionalProperty(prop);
+                    std::cout << optionalProp.GetOptionString();
+                }
+            }
+            catch (...)
+            {
+                std::cout << "[读取错误]";
+            }
+
+            std::cout << std::endl;
+        }
+    }
+
+    // ==================== 测试5: 枚举键值的性能测试 ====================
+    {
+        std::cout << "\n\n测试5: 枚举键值的性能测试" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+        const int ITERATIONS = 1000000; // 100万次
+
+        using Clock = std::chrono::high_resolution_clock;
+
+        // 测试枚举键值的查找性能
+        std::cout << "枚举键值查找性能测试 (" << ITERATIONS << "次迭代):" << std::endl;
+
+        // 直接访问
+        auto start = Clock::now();
+        for (int i = 0; i < ITERATIONS; ++i)
+        {
+            color.red = i % 256;
+            int temp = color.red;
+            (void)temp;
+        }
+        auto end = Clock::now();
+        auto directTime = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+
+        // 通过枚举键值访问（缓存Property对象）
+        start = Clock::now();
+        auto redProp = color.GetProperty(ColorKey::RED);
+        for (int i = 0; i < ITERATIONS; ++i)
+        {
+            redProp.SetValue<int>(i % 256);
+            int temp = redProp.GetValue<int>();
+            (void)temp;
+        }
+        end = Clock::now();
+        auto enumKeyTime = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+
+        std::cout << "  直接访问: " << directTime.count() << " ns" << std::endl;
+        std::cout << "  枚举键值访问: " << enumKeyTime.count() << " ns" << std::endl;
+        std::cout << "  开销倍数: "
+            << std::fixed << std::setprecision(2)
+            << (static_cast<double>(enumKeyTime.count()) / directTime.count())
+            << "x" << std::endl;
+    }
+
+    // ==================== 测试6: 枚举键值的错误处理 ====================
+    {
+        std::cout << "\n\n测试6: 枚举键值的错误处理" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+
+        // 测试不存在的枚举值（需要创建一个不存在的枚举值）
+        // 注意：我们无法创建不存在的枚举值，但可以测试无效的属性访问
+
+        std::cout << "错误处理测试:" << std::endl;
+
+        // 创建有效的Property对象
+        auto validProp = color.GetProperty(ColorKey::RED);
+        std::cout << "  有效的RED属性: " << (validProp.IsValid() ? "是" : "否") << std::endl;
+
+        // 创建无效的Property对象（通过默认构造函数）
+        ROP::Property<ColorProperty, ColorKey, ColorKeyHash, ColorKeyEqual, ColorKeyToString> invalidProp;
+        std::cout << "  无效的属性对象: " << (invalidProp.IsValid() ? "是" : "否") << std::endl;
+
+        // 测试类型不匹配
+        try
+        {
+            auto redProp = color.GetProperty(ColorKey::RED);
+            // 尝试用错误的类型获取值
+            float wrongValue = redProp.GetValue<float>();
+            std::cout << "  类型不匹配测试失败 - 不应该执行到这里" << std::endl;
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << "  类型不匹配异常正确捕获: " << e.what() << std::endl;
+        }
+    }
+
+    // ==================== 测试7: 枚举键值的哈希和相等性 ====================
+    {
+        std::cout << "\n\n测试7: 枚举键值的哈希和相等性" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color1;
+        ColorObject color2;
+
+        color1.red = 100;
+        color2.red = 200;
+
+        std::cout << "哈希和相等性测试:" << std::endl;
+
+        // 获取相同枚举键值的属性
+        auto redProp1 = color1.GetProperty(ColorKey::RED);
+        auto redProp2 = color2.GetProperty(ColorKey::RED);
+
+        std::cout << "  相同枚举键值但不同对象的属性:" << std::endl;
+        std::cout << "    color1.RED值: " << redProp1.GetValue<int>() << std::endl;
+        std::cout << "    color2.RED值: " << redProp2.GetValue<int>() << std::endl;
+        std::cout << "    键值相等: " << (redProp1.GetName() == redProp2.GetName() ? "是" : "否") << std::endl;
+        std::cout << "    元数据指针相等: " << (redProp1.GetMetaPtr() == redProp2.GetMetaPtr() ? "是" : "否") << std::endl;
+        std::cout << "    对象指针相等: " << (redProp1.GetObject() == redProp2.GetObject() ? "是" : "否") << std::endl;
+
+        // 测试哈希值计算
+        ColorKeyHash hashFunc;
+        ColorKeyEqual equalFunc;
+
+        ColorKey key1 = ColorKey::RED;
+        ColorKey key2 = ColorKey::RED;
+        ColorKey key3 = ColorKey::GREEN;
+
+        std::cout << "\n  枚举键值哈希测试:" << std::endl;
+        std::cout << "    RED哈希值: " << hashFunc(key1) << std::endl;
+        std::cout << "    GREEN哈希值: " << hashFunc(key3) << std::endl;
+        std::cout << "    RED == RED: " << (equalFunc(key1, key2) ? "true" : "false") << std::endl;
+        std::cout << "    RED == GREEN: " << (equalFunc(key1, key3) ? "true" : "false") << std::endl;
+    }
+
+    // ==================== 测试8: 枚举键值与其他功能的集成 ====================
+    {
+        std::cout << "\n\n测试8: 枚举键值与其他功能的集成" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        ColorObject color;
+        color.red = 150;
+        color.green = 200;
+        color.blue = 100;
+        color.mode = 2; // HSV
+        color.enabled = true;
+
+        std::cout << "集成功能测试:" << std::endl;
+
+        // 测试HasProperty
+        std::cout << "  HasProperty测试:" << std::endl;
+        std::cout << "    有RED属性: " << (color.HasProperty(ColorKey::RED) ? "是" : "否") << std::endl;
+        std::cout << "    有GREEN属性: " << (color.HasProperty(ColorKey::GREEN) ? "是" : "否") << std::endl;
+        std::cout << "    有ColorObject::RED属性: " << (color.HasProperty(ColorKey::RED, "ColorObject") ? "是" : "否") << std::endl;
+
+        // 测试获取所有同名属性
+        std::cout << "\n  获取所有同名属性测试:" << std::endl;
+        ExtendedColorObject extColor;
+        auto allModeProps = extColor.GetAllPropertiesByName(ColorKey::MODE);
+        std::cout << "    名为MODE的属性数量: " << allModeProps.size() << std::endl;
+        for (size_t i = 0; i < allModeProps.size(); ++i)
+        {
+            std::cout << "    " << i << ": " << allModeProps[i].GetClassName()
+                << " (值: " << allModeProps[i].GetValue<int>() << ")" << std::endl;
+        }
+
+        // 测试获取唯一属性名称列表
+        std::cout << "\n  唯一属性名称列表:" << std::endl;
+        auto uniqueNames = extColor.GetUniquePropertyNames();
+        std::cout << "    唯一属性数量: " << uniqueNames.size() << std::endl;
+        for (const auto& name : uniqueNames)
+        {
+            ColorKeyToString toString;
+            std::cout << "    " << toString(name) << std::endl;
+        }
+    }
+
+    // ==================== 测试9: 枚举键值的边界情况 ====================
+    {
+        std::cout << "\n\n测试9: 枚举键值的边界情况" << std::endl;
+        std::cout << std::string(50, '-') << std::endl;
+
+        std::cout << "边界情况测试:" << std::endl;
+
+        // 测试枚举键值的默认值
+        ColorKey defaultKey{};
+        ColorKeyToString toString;
+        std::cout << "  默认枚举键值: " << toString(defaultKey)
+            << " (整数值: " << static_cast<int>(defaultKey) << ")" << std::endl;
+
+        // 测试枚举键值的范围
+        std::cout << "\n  枚举键值范围测试:" << std::endl;
+        ColorKey minKey = ColorKey::RED;
+        ColorKey maxKey = ColorKey::ENABLED;
+        std::cout << "    最小键值: " << toString(minKey)
+            << " (整数值: " << static_cast<int>(minKey) << ")" << std::endl;
+        std::cout << "    最大键值: " << toString(maxKey)
+            << " (整数值: " << static_cast<int>(maxKey) << ")" << std::endl;
+
+        // 测试枚举键值在映射中的行为
+        std::cout << "\n  枚举键值在映射中的行为:" << std::endl;
+        ColorObject color;
+        const auto& directMap = color.GetDirectPropertyMap();
+
+        // 统计使用枚举键值的映射大小
+        std::cout << "    直接映射大小: " << directMap.size() << std::endl;
+
+        // 检查特定枚举键值是否在映射中
+        auto it = directMap.find(ColorKey::RED);
+        if (it != directMap.end())
+        {
+            std::cout << "    找到RED键值: " << toString(it->first) << std::endl;
+        }
+
+        it = directMap.find(ColorKey::GREEN);
+        if (it != directMap.end())
+        {
+            std::cout << "    找到GREEN键值: " << toString(it->first) << std::endl;
+        }
+    }
+
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "枚举类型作为属性键值测试完成" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+}
+
 // 主函数
 int main()
 {
@@ -1862,6 +2430,7 @@ int main()
         TestManyProperties();
         TestOptionalPropertySystem();
         test2();
+        TestEnumKeyPropertySystem();
 
         std::cout << "\n所有测试完成！" << std::endl;
         return 0;
