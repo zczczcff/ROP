@@ -23,3 +23,6 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 
 # 添加测试子目录
 add_subdirectory(Test)
+
+# 添加跨动态库测试子目录
+add_subdirectory(SharedLibTest)
