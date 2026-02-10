@@ -13,12 +13,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Include
     ${CMAKE_SOURCE_DIR}/SharedLibTest/Common/Include
     ${CMAKE_SOURCE_DIR}/SharedLibTest/TestCore/Include
+    ${CMAKE_SOURCE_DIR}/SharedLibTest/Testlib3/Include
 )
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
     ROP
     TestCore
+    Testlib3
     SharedLibTestCommon
 )
 
@@ -41,6 +43,9 @@ if(WIN32)
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:Test2lib>
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:Testlib3>
             $<TARGET_FILE_DIR:${PROJECT_NAME}>
         COMMENT "Copying required DLLs to executable directory"
     )

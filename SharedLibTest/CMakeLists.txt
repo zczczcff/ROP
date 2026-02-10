@@ -17,6 +17,7 @@ add_subdirectory(Common)
 add_subdirectory(TestCore)
 add_subdirectory(Test1lib)
 add_subdirectory(Test2lib)
+add_subdirectory(Testlib3)
 
 # 添加主程序
 add_subdirectory(MainApp)

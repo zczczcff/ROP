@@ -11,7 +11,7 @@
 namespace Test1lib
 {
 
-class TEST1LIB_EXPORT Test1Class :
+class Test1Class :
     public ROP::PropertyObject<
         TestCore::CorePropertyType,
         std::string,

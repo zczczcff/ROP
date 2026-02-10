@@ -12,7 +12,7 @@
 namespace Test2lib
 {
 
-class TEST2LIB_EXPORT Test2Class :
+class Test2Class :
     public ROP::PropertyObject<
         TestCore::CorePropertyType,
         std::string,
